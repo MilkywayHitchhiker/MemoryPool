@@ -22,7 +22,7 @@ public:
 
 int main()
 {
-	Hitchhiker::CMemoryPool<abc> MemPool (1000);
+	Hitchhiker::CMemoryPool<abc> MemPool (0);
 
 	abc *p[1000];
 

@@ -25,24 +25,6 @@ MemPool.Free(pData);
 #include <malloc.h>
 #pragma pack(1)
 
-/*
-class DATA
-{
-public :
-	int Test;
-
-	DATA (void)
-	{
-		Test = 0x1234;
-	}
-	~DATA (void)
-	{
-		Test = 0;
-	}
-};
-
-*/
-
 namespace Hitchhiker
 {
 
