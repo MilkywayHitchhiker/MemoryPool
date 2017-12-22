@@ -146,30 +146,44 @@ protected:
 private:
 
 	static Hitchhiker::CMemoryPool<Packet> *PacketPool;
-	int RefCnt;
+	int RefCnt=0;
 public:
 
 	//return: Packet *
 	static Packet *Alloc (void)
 	{
-		//최초 1번 new로 실행된다.
-		InterlockedCompareExchangePointer ((volatile PVOID *) PacketPool, NULL, new Hitchhiker::CMemoryPool<Packet>);
+
+		if ( PacketPool == NULL )
+		{
+			//최초 1번 new로 할당받아서 저장된다.
+			InterlockedCompareExchangePointer (( volatile PVOID * )PacketPool, NULL, new Hitchhiker::CMemoryPool<Packet>);
+		}
 
 
 		Packet *p = PacketPool->Alloc ();
-		InterlockedIncrement (( volatile long * )p->RefCnt);
+		
+
+		p->AddRefCnt ();
 
 		return p;
 
 	}
 
-	static bool Free (Packet *p)
+	//return void
+	static void Free (Packet *p)
 	{
 		if ( 0 == InterlockedDecrement (( volatile long * )p->RefCnt) )
 		{
 			PacketPool->Free (p);
 		}
-	}
 
+		return;
+	}
+	void  AddRefCnt ()
+	{
+		InterlockedIncrement (( volatile long * )RefCnt);
+		
+		return;
+	}
 
 };
