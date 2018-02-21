@@ -23,9 +23,10 @@ MemPool.Free(pData);
 #include <assert.h>
 #include <new.h>
 #include <malloc.h>
+#include <Windows.h>
 #pragma pack(1)
 
-/*
+
 class DATA
 {
 public :
@@ -40,8 +41,6 @@ public :
 		Test = 0;
 	}
 };
-
-*/
 
 namespace Hitchhiker
 {
@@ -263,12 +262,18 @@ namespace Hitchhiker
 				//블럭의 최대치가 지정되어있지 않은 경우 새로 할당 받아서 리턴해준다.
 				st_BLOCK_NODE *p =(st_BLOCK_NODE *) malloc (sizeof (st_BLOCK_NODE));
 				p->FrontSafeLine = SafeLine;
-				new(&p->T) DATA ();
 				p->stpNextBlock = NULL;
 				p->LastSafeLine = SafeLine;
 
 				MemoryPoolNodeCnt++;
 				UseSize += sizeof (st_BLOCK_NODE);
+
+				//만약 플레이스먼트 뉴를 사용중이라면 여기서 블럭에 대한 생성자를 셋팅
+				if ( PlacementNew == true )
+				{
+					new(&p->T) DATA ();
+				}
+
 				return &p->T;
 
 				
@@ -357,6 +362,268 @@ namespace Hitchhiker
 		}
 
 	};
+
+
+
+
+	/*===================
+	TLS 버전 MemoryPool
+	===================*/
+
+//	template <class DATA>
+	class CMemoryPool_TLS
+	{
+	#define SafeLineTLS 0xffff89777789
+
+	private:
+	
+		class Chunk;
+
+		bool PlacementNewFlag;
+		int TLSAllocNum;
+		int MaxBLockNum;
+		SRWLOCK _CS;
+
+#ifdef _DEBUG
+		__int64 TESTAllocCnt;
+		__int64 TESTFreeCnt;
+#endif
+	public:
+
+		//////////////////////////////////////////////////////////////////////////
+		// 생성자, 파괴자.
+		//
+		// Parameters:	(int) 최대 블럭 개수.
+		//				(bool) 생성자 호출 여부.
+		// Return:
+		//////////////////////////////////////////////////////////////////////////
+		CMemoryPool_TLS (int iBlockNum, bool bPlacementNew = true)
+		{
+			PlacementNewFlag = bPlacementNew;
+			TLSAllocNum = TlsAlloc ();
+			MaxBLockNum = iBlockNum;
+
+			InitializeSRWLock (&_CS);
+		}
+		virtual	~CMemoryPool_TLS ()
+		{
+		
+
+		}
+
+
+		//////////////////////////////////////////////////////////////////////////
+		// 블럭 하나를 할당받는다.
+		//
+		// Parameters: 없음.
+		// Return: (DATA *) 데이타 블럭 포인터.
+		//////////////////////////////////////////////////////////////////////////
+		DATA	*Alloc (void)
+		{
+			DATA *Data;
+			Chunk *p =(Chunk *) TlsGetValue (TLSAllocNum);
+			
+			//tls에 저장한 청크 블럭을 가져올때 셋팅값이 널이라면 최초 Alloc이므로 셋팅해줘야됨.
+			if ( p == NULL )
+			{
+				p = Set_Chunk_TLS ();
+				Data = p->Alloc ();
+			}
+			else
+			{
+				Data = p->Alloc ();
+				
+				//Alloc을 못 받았을 경우 Alloc이 다 된것이므로 새로 청크 셋팅.
+				if ( Data == NULL )
+				{
+					p = Set_Chunk_TLS ();
+					Data = p->Alloc ();
+				}
+			}
+
+			//플레이스먼트 new 체크 및 생성자 호출
+			if ( PlacementNewFlag == true)
+			{
+				new (Data) DATA;
+			}
+
+#ifdef _DEBUG
+			//테스트용 코드. tls특성상 총 Alloc 카운트를 확인 할 수 없으므로 디버그모드에서만 사용.
+			InterlockedIncrement64 (( volatile LONG64 * )&TESTAllocCnt);
+#endif
+
+			return Data;
+		}
+
+		//////////////////////////////////////////////////////////////////////////
+		// 사용중이던 블럭을 해제한다.
+		//
+		// Parameters: (DATA *) 블럭 포인터.
+		// Return: (BOOL) TRUE, FALSE.
+		//////////////////////////////////////////////////////////////////////////
+		bool	Free (DATA *pData)
+		{
+			Chunk::Node *pNode = (Chunk::Node *)((__int64 *)pData--);
+			Chunk *pChunk = pNode->MotherChunk;
+			if ( !pChunk->Free () )
+			{
+				delete pChunk;
+			}
+#ifdef _DEBUG
+			//테스트용 코드. tls특성상 총 Free 카운트를 확인 할 수 없으므로 디버그모드에서만 사용.
+			InterlockedIncrement64 (( volatile LONG64 * )&TESTFreeCnt);
+#endif
+
+			return true;
+		}
+
+		/*
+		Tls에 Chunk 포인터 등록
+		*/
+		Chunk *Set_Chunk_TLS (void)
+		{
+			Chunk *p = new Chunk(MaxBLockNum);
+
+			AcquireSRWLockExclusive (&_CS);
+			TlsSetValue (TLSAllocNum, ( LPVOID )p);
+			ReleaseSRWLockExclusive (&_CS);
+			
+			return p;
+		}
+
+		/*
+		GetAllocCount 함수
+		DEBUG모드에서만 수치를 얻을 수 있다.
+		return : int
+		*/
+		int GetAllocCount (void)
+		{
+			return TESTAllocCnt;
+		}
+
+		/*
+		GetFreeCount 함수
+		DEBUG 모드에서만 수치를 얻을 수 있다.
+		return : int
+		*/
+		int GetFreeCount (void)
+		{
+			return TESTFreeCnt;
+		}
+	
+
+
+	private : 
+		/*==========================================
+		Chunk 클래스
+		각 스레드별 TLS로 할당. 및 Alloc과 Free담당.
+		==========================================*/
+		class Chunk
+		{
+		public :
+			struct Node
+			{
+				__int64 SafeTop;
+				DATA Data;
+				__int64 SafeBot;
+				Node *pNextNode;
+				Chunk *MotherChunk;
+				bool Useflag;
+			};
+		public :
+			Node *Destroy_Top_Pointer;
+			Node *TopNode;
+			unsigned __int64 Alloc_Cnt;
+			unsigned __int64 Free_Cnt;
+			int MaxNode;
+
+
+			/*
+			Chunk 생성자.
+			Parameta : Node의 Max갯수.
+			*/
+			Chunk (int MaxNode_Cnt)
+			{
+				MaxNode = MaxNode_Cnt;
+				Alloc_Cnt = 0;
+				Free_Cnt = 0;
+				TopNode = NULL;
+				Node *NewNode;
+
+				for ( int Cnt = MaxNode_Cnt; Cnt > 0; Cnt-- )
+				{
+					NewNode = ( Node * )malloc (sizeof (Node));
+					NewNode->SafeTop = SafeLineTLS;
+					NewNode->SafeBot = SafeLineTLS;
+					NewNode->pNextNode = TopNode;
+					NewNode->MotherChunk = this;
+					NewNode->Useflag = false;
+
+					TopNode = NewNode;
+				}
+				Destroy_Top_Pointer = TopNode;
+			};
+
+			/*
+			Chunk 파괴자.
+			parameta : none
+			*/
+			~Chunk ()
+			{
+				Node *pBackup_Destroyed_Node;
+				Node *pTopNode = Destroy_Top_Pointer;
+
+				int MaxNodeCnt = MaxNode;
+
+				for ( int Cnt = MaxNodeCnt; Cnt > 0; Cnt-- )
+				{
+					pBackup_Destroyed_Node = pTopNode;
+					pTopNode = pTopNode->pNextNode;
+
+					free (pBackup_Destroyed_Node);
+				}
+				return;
+			};
+
+			/*
+			Chunk Alloc 코드
+			return : template DATA Pointer; Alloc할 수 없는 경우 NULL을 반환.
+			*/
+			DATA *Alloc (void)
+			{
+				if ( InterlockedIncrement64 (( volatile  LONG64 * )&Alloc_Cnt) >= MaxNode )
+				{
+					return NULL;
+				}
+
+				Node *backup_TopNode = TopNode;
+				TopNode = backup_TopNode->pNextNode;
+				
+				backup_TopNode->Useflag = true;
+
+				return &backup_TopNode->Data;			
+			}
+
+			/*
+			Chunk Free 함수
+			모든 Chunk내 노드가 전부 Free됬다면 return false 반환.
+			return : bool Flag;
+			*/
+			bool Free (void)
+			{
+				//모든 Chunk내 노드 전부 사용.
+				if ( InterlockedIncrement64 (( volatile  LONG64 * )&Free_Cnt) >= MaxNode )
+				{
+					return false;
+				}
+
+				return true;
+			}
+		};
+
+};
+
+
 
 }
 
