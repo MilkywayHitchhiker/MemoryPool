@@ -21,6 +21,7 @@ public:
 	}
 };
 
+unsigned __stdcall MemoryPoolThread (void *pParam);
 
 //락프리 테스트용
 //=======================
@@ -33,76 +34,42 @@ struct st_TEST_DATA
 #define dfTHREAD_ALLOC 10000
 #define dfTHREAD_MAX 10
 
-Hitchhiker::CMemoryPool_LockFree<st_TEST_DATA> *g_Mempool;
+CMemoryPool_TLS<st_TEST_DATA> *g_Mempool;
 
 LONG64 lAllocTPS = 0;
 LONG64 lFreeTPS = 0;
 
-LONG64 lAllocCounter = 0;
-LONG64 lFreeCounter = 0;
+
 //=======================
 
 int main()
 {
-
-	// not Thread Safe Memory pool
-/*
-	Hitchhiker::CMemoryPool<abc> MemPool (0);
-
-	abc *p[1000];
-
-	for ( int cnt = 0; cnt < 1000; cnt++ )
-	{
-		p[cnt] = MemPool.Alloc ();
-		printf ("%d : %d \n", cnt, p[cnt]->Test);
-	}
-
-	printf ("Alloc : %d \n", MemPool.GetMemoryPoolFullCount ());
-	printf ("Use : %d \n", MemPool.GetUseCount ());
-	printf ("Free : %d \n", MemPool.GetFreeCount());
-
-
-	printf ("\n\n할당 일부 해제\n\n");
-	for ( int cnt = 0; cnt < 700; cnt++ )
-	{
-		MemPool.Free (p[cnt]);
-	}
-	printf ("Alloc : %d \n", MemPool.GetMemoryPoolFullCount ());
-	printf ("Use : %d \n", MemPool.GetUseCount ());
-	printf ("Free : %d \n", MemPool.GetFreeCount ());
-
-	return 0;
-	*/
-
-	g_Mempool = new Hitchhiker::CMemoryPool_LockFree<st_TEST_DATA> (0);
+	g_Mempool = new CMemoryPool_TLS<st_TEST_DATA> (0);
 
 	HANDLE hThread[dfTHREAD_MAX];
 	DWORD dwThreadID;
 
+	int lAllocCount;
+	int lFreeCount;
+	int IFullCount;
+
 	for ( int iCnt = 0; iCnt < dfTHREAD_MAX; iCnt++ )
 	{
-		hThread[iCnt] = ( HANDLE )_beginthreadex (
-			NULL,
-			0,
-			MemoryPoolThread,
-			( LPVOID )0,
-			0,
-			( unsigned int * )&dwThreadID
-		);
+		hThread[iCnt] = ( HANDLE )_beginthreadex (NULL, 0, MemoryPoolThread, ( LPVOID )0, 0, ( unsigned int * )&dwThreadID);
 	}
 
 	while ( 1 )
 	{
-		lAllocTPS = lAllocCounter;
-		lFreeTPS = lFreeCounter;
-
-		lAllocCounter = 0;
-		lFreeCounter = 0;
+		lAllocCount = g_Mempool->GetAllocCount();
+		lFreeCount = g_Mempool->GetFreeCount();
+		IFullCount = g_Mempool->GetFullCount ();
 
 		wprintf (L"----------------------------------------------------\n");
-		wprintf (L"Alloc TPS		: %d\n", lAllocTPS);
-		wprintf (L"Free TPS		: %d\n", lFreeTPS);
-		wprintf (L"Memory Block Count	: %d\n", ( LONG64 )g_Mempool->GetBlockCount ());
+		wprintf (L"Alloc TPS		: %lld\n", lAllocTPS);
+		wprintf (L"Free TPS		: %lld\n", lFreeTPS);
+		wprintf (L"Memory Pool Alloc	: %d\n", lAllocCount);
+		wprintf (L"Memory Pool Free	: %d\n", lFreeCount);
+		wprintf (L"Memory Pool Full	: %d\n", IFullCount);
 		wprintf (L"----------------------------------------------------\n\n");
 
 		Sleep (999);
@@ -142,7 +109,7 @@ unsigned __stdcall MemoryPoolThread (void *pParam)
 			pDataArray[iCnt] = ( st_TEST_DATA * )g_Mempool->Alloc ();
 			pDataArray[iCnt]->lData = 0x0000000055555555;
 			pDataArray[iCnt]->lCount = 0;
-			InterlockedIncrement64 (( LONG64 * )&lAllocCounter);
+			InterlockedIncrement64 (( LONG64 * )&lAllocTPS);
 		}
 
 		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
@@ -184,7 +151,7 @@ unsigned __stdcall MemoryPoolThread (void *pParam)
 		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
 		{
 			g_Mempool->Free (pDataArray[iCnt]);
-			InterlockedIncrement64 (( LONG64 * )&lFreeCounter);
+			InterlockedIncrement64 (( LONG64 * )&lFreeTPS);
 		}
 	}
 }

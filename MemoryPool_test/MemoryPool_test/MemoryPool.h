@@ -1,664 +1,271 @@
-#pragma once
-/*========================
-MemoryPool.
-
-메모리 풀 클래스.
-특정 데이타(구조체,클래스,변수)를 할당 후 Alloc 해서 쓴다.
-
-============================*/
-#ifndef  __MEMORY_POOL__
-#define  __MEMORY_POOL__
-#include <assert.h>
-#include <new.h>
-#include <malloc.h>
-#include <Windows.h>
-#pragma pack(1)
-
-
-#define _TEST_
-
-/*
-class DATA
-{
-public :
-	int Test;
-
-	DATA (void)
-	{
-		Test = 0x1234;
-	}
-	~DATA (void)
-	{
-		Test = 0;
-	}
-};
-*/
-
-namespace Hitchhiker
-{
-
-
-	template <class DATA>
-	class CMemoryPool
-	{
-#define SafeLine 0x89777789
-
-	private:
-
-		/* **************************************************************** */
-		// 각 블럭 앞에 사용될 노드 구조체.
-		//맨 앞과 뒤에는 해당 구조체의 영역을 체크할 안전장치를 마련.
-		/* **************************************************************** */
-		struct st_BLOCK_NODE
-		{
-			unsigned int FrontSafeLine;
-			DATA T;
-			st_BLOCK_NODE *stpNextBlock;
-			unsigned int LastSafeLine;
-		};
-
-		//기준노드
-		st_BLOCK_NODE *HeadNode;
-		
-
-		void *DestroyPointer;
-		//생성자 작동시킬 위치
-		//false일 경우 메모리풀 생성시 생성자를 한번에 할당함.
-		bool PlacementNew;
-
-		//최대치가 정해져 있는경우
-		bool BlockFlag;
-
-		//메모리풀에 할당된 노드 전체 갯수
-		int MemoryPoolNodeCnt;
-
-		//현재 사용중인 노드 갯수
-		int UseSize;
-
-	public:
-
-		//////////////////////////////////////////////////////////////////////////
-		// 생성자, 파괴자.
-		//
-		// Parameters:	(int) 최대 블럭 개수.
-		//				(bool) 생성자 호출 여부.
-		// Return:
-		//////////////////////////////////////////////////////////////////////////
-		CMemoryPool (int iBlockNum = 0, bool bPlacementNew = false)
-		{
-			HeadNode = NULL;
-			PlacementNew = bPlacementNew;
-
-			if ( iBlockNum == 0 )
-			{
-				BlockFlag = false;
-				return;
-			}
-
-
-
-			BlockFlag = true;
-
-			if ( PlacementNew == false )
-			{
-				//방법1. 만들려는 블록들을 통으로 한번에 만드는 방법.
-				st_BLOCK_NODE *NewBlock = ( st_BLOCK_NODE * )malloc (sizeof (st_BLOCK_NODE) * iBlockNum);
-				DestroyPointer = NewBlock;
-				for ( int cnt = iBlockNum - 1; cnt >= 0; cnt-- )
-				{
-					st_BLOCK_NODE *p = NewBlock + cnt;
-
-					p->FrontSafeLine = SafeLine;
-					new(&p->T) DATA ();
-					p->stpNextBlock = HeadNode;
-					p->LastSafeLine = SafeLine;
-
-					HeadNode = p;
-				}
-				
-				MemoryPoolNodeCnt = iBlockNum;
-
-				/*
-				//방법2. 노드들을 죄다 따로 할당 하는 방법.
-				for ( int cnt = 0; cnt < iBlockNum; cnt++ )
-				{
-				//새로 노드를 할당받음
-				st_BLOCK_NODE *NewNode = new st_BLOCK_NODE;
-
-				NewNode->FrontSafeLine = SafeLine;
-				new(&p->T) DATA ();
-				NewNode->stpNextBlock = HeadNode;
-
-				NewNode->LastSafeLine = SafeLine;
-
-				HeadNode = NewNode;
-
-				}
-				*/
-				return;
-			}
-
-
-
-			////////////////////////////////////////////
-			//Placement New가 true일때
-			////////////////////////////////////////////
-			st_BLOCK_NODE *NewBlock = ( st_BLOCK_NODE * )malloc (sizeof (st_BLOCK_NODE) * iBlockNum);
-			DestroyPointer = NewBlock;
-			for ( int cnt = iBlockNum - 1; cnt >= 0; cnt-- )
-			{
-				st_BLOCK_NODE *p = NewBlock + cnt;
-
-				p->FrontSafeLine = SafeLine;
-				p->stpNextBlock = HeadNode;
-				p->LastSafeLine = SafeLine;
-
-				HeadNode = p;
-			}
-			
-
-			return;
-
-
-		}
-		virtual	~CMemoryPool ()
-		{
-			//두가지로 나뉜다. Placement new가 true일 경우 false일경우
-			if ( PlacementNew == true )
-			{
-				//처음부터 Max치를 고정으로 갔을 경우
-				if ( BlockFlag == true )
-				{
-					free (DestroyPointer);
-					return;
-				}
-
-				//자동할당으로 갔을 경우
-
-				st_BLOCK_NODE *p;
-				p = HeadNode;
-
-				while ( p != NULL )
-				{
-					st_BLOCK_NODE *Delete;
-
-					Delete = p;
-					p = p->stpNextBlock;
-
-					free (Delete);
-				}
-
-				return;
-
-			}
-
-
-			//Placement new가 false일 경우
-			
-
-			
-			st_BLOCK_NODE *p;
-			p = HeadNode;
-			
-			//처음부터 Max치를 고정으로 갔을 경우
-			if ( BlockFlag == true )
-			{
-				//멤버를 돌면서 파괴자 전부 호출
-				while ( p != NULL )
-				{
-					p->T.~DATA ();
-					p = p->stpNextBlock;
-				}
-				free (DestroyPointer);
-				return;
-			}
-
-			//자동할당으로 갔을 경우
-
-
-
-			while ( p != NULL )
-			{
-				st_BLOCK_NODE *Delete;
-
-				Delete = p;
-				p = p->stpNextBlock;
-				Delete->T.~DATA ();
-
-				free (Delete);
-			}
-			return;
-
-
-
-		}
-
-
-		//////////////////////////////////////////////////////////////////////////
-		// 블럭 하나를 할당받는다.
-		//
-		// Parameters: 없음.
-		// Return: (DATA *) 데이타 블럭 포인터.
-		//////////////////////////////////////////////////////////////////////////
-		DATA	*Alloc (void)
-		{
-			//헤드노드가 NULL일 경우 두가지로 나뉨.
-			if ( HeadNode == NULL )
-			{
-				//블럭의 최대치가 지정되어있을 경우
-				if ( BlockFlag == true )
-				{
-					return NULL;
-				}
-
-				//블럭의 최대치가 지정되어있지 않은 경우 새로 할당 받아서 리턴해준다.
-				st_BLOCK_NODE *p =(st_BLOCK_NODE *) malloc (sizeof (st_BLOCK_NODE));
-				p->FrontSafeLine = SafeLine;
-				p->stpNextBlock = NULL;
-				p->LastSafeLine = SafeLine;
-
-				MemoryPoolNodeCnt++;
-				UseSize += sizeof (st_BLOCK_NODE);
-
-				//만약 플레이스먼트 뉴를 사용중이라면 여기서 블럭에 대한 생성자를 셋팅
-				if ( PlacementNew == true )
-				{
-					new(&p->T) DATA ();
-				}
-
-				return &p->T;
-
-				
-			}
-
-
-			//p포인터에 현재 노드 임시저장. 헤드 노드는 다음노드를 가져감.
-			st_BLOCK_NODE *p = HeadNode;
-			HeadNode = HeadNode->stpNextBlock;
-			
-			//만약 플레이스먼트 뉴를 사용중이라면 여기서 블럭에 대한 생성자를 셋팅해준다.
-			if ( PlacementNew == true )
-			{
-				new(&p->T) DATA ();
-			}
-			
-			//블럭포인터를 반환해줌.
-			UseSize += sizeof (st_BLOCK_NODE);
-
-			return &p->T;
-		}
-
-		//////////////////////////////////////////////////////////////////////////
-		// 사용중이던 블럭을 해제한다.
-		//
-		// Parameters: (DATA *) 블럭 포인터.
-		// Return: (BOOL) TRUE, FALSE.
-		//////////////////////////////////////////////////////////////////////////
-		bool	Free (DATA *pData)
-		{
-			//블럭 검증 및 노드셋팅을 위한 캐스팅
-			st_BLOCK_NODE *p = (st_BLOCK_NODE *) (( char *)pData - 4);
-
-			//받은 포인터가 메모리풀에서 나간 블럭 포인터가 맞는지 확인. 아니라면 false반환
-			if ( p->FrontSafeLine != SafeLine || p->LastSafeLine != SafeLine )
-			{
-				return false;
-			}
-
-			//받은 포인터가 메모리풀의 블럭포인터가 맞다면 Placementnew확인후 파괴자 호출
-			if ( PlacementNew == true )
-			{
-				p->T.~DATA ();
-			}
-
-			//받은 블럭의 넥스트 블럭 포인터 셋팅 후 헤드에 꼽아 넣는다.
-			p->stpNextBlock = HeadNode;
-			HeadNode = p;
-
-			UseSize -= sizeof (st_BLOCK_NODE);
-			return true;
-		}
-
-
-		//////////////////////////////////////////////////////////////////////////
-		// 현재 확보 된 블럭 개수를 얻는다. (메모리풀 내부의 전체 개수)
-		//
-		// Parameters: 없음.
-		// Return: (int) 메모리 풀 내부 전체 개수
-		//////////////////////////////////////////////////////////////////////////
-		int		GetMemoryPoolFullCount (void)
-		{
-			return MemoryPoolNodeCnt;
-		}
-
-		//////////////////////////////////////////////////////////////////////////
-		// 현재 사용중인 블럭 개수를 얻는다.
-		//
-		// Parameters: 없음.
-		// Return: (int) 사용중인 블럭 개수.
-		//////////////////////////////////////////////////////////////////////////
-		int		GetUseCount (void)
-		{
-			return UseSize / sizeof(st_BLOCK_NODE);
-		}
-
-		///////////////////////////////////////////////////////////////////////////
-		//현재 보관중인. 사용가능한 블럭 개수를 얻는다.
-		//ps. 생성자에 인자로 Placement new를 true로 해놓지 않았다면 반환된 수치보다 많이 쓸 수 있음.
-		// Parameters: 없음.
-		// Return: (int) 사용가능 블럭 개수.
-		///////////////////////////////////////////////////////////////////////////
-		int		GetFreeCount (void)
-		{
-			return MemoryPoolNodeCnt - (UseSize / sizeof(st_BLOCK_NODE));
-		}
-
-	};
-
-
-
-
-	/*===================
-	TLS 버전 MemoryPool
-	===================*/
-
-	template <class DATA>
-	class CMemoryPool_TLS
-	{
-	#define SafeLineTLS 0xffff89777789
-
-	private:
-	
-		class Chunk;
-
-		bool PlacementNewFlag;
-		int TLSAllocNum;
-		int MaxBLockNum;
-		SRWLOCK _CS;
-
-		__int64 TESTAllocCnt;
-		__int64 TESTFreeCnt;
-#
-		public:
-
-		//////////////////////////////////////////////////////////////////////////
-		// 생성자, 파괴자.
-		//
-		// Parameters:	(int) 최대 블럭 개수.
-		//				(bool) 생성자 호출 여부.
-		// Return:
-		//////////////////////////////////////////////////////////////////////////
-		CMemoryPool_TLS (int iBlockNum, bool bPlacementNew = true)
-		{
-			PlacementNewFlag = bPlacementNew;
-			TLSAllocNum = TlsAlloc ();
-			MaxBLockNum = iBlockNum;
-
-			TESTAllocCnt = 0;
-			TESTFreeCnt = 0;
-
-			InitializeSRWLock (&_CS);
-		}
-		virtual	~CMemoryPool_TLS ()
-		{
-		
-
-		}
-
-
-		//////////////////////////////////////////////////////////////////////////
-		// 블럭 하나를 할당받는다.
-		//
-		// Parameters: 없음.
-		// Return: (DATA *) 데이타 블럭 포인터.
-		//////////////////////////////////////////////////////////////////////////
-		DATA	*Alloc (void)
-		{
-			DATA *Data;
-			Chunk *p =(Chunk *) TlsGetValue (TLSAllocNum);
-			
-			//tls에 저장한 청크 블럭을 가져올때 셋팅값이 널이라면 최초 Alloc이므로 셋팅해줘야됨.
-			if ( p == NULL )
-			{
-				p = Set_Chunk_TLS ();
-				Data = p->Alloc ();
-			}
-			else
-			{
-				Data = p->Alloc ();
-				
-				//Alloc을 못 받았을 경우 Alloc이 다 된것이므로 새로 청크 셋팅.
-				if ( Data == NULL )
-				{
-					p = Set_Chunk_TLS ();
-					Data = p->Alloc ();
-				}
-			}
-
-			//플레이스먼트 new 체크 및 생성자 호출
-			if ( PlacementNewFlag == true)
-			{
-				new (Data) DATA;
-			}
-
-#ifdef _TEST_
-			//테스트용 코드. tls특성상 총 Alloc 카운트를 확인 할 수 없으므로 디버그모드에서만 사용.
-			InterlockedIncrement64 (( volatile LONG64 * )&TESTAllocCnt);
-#endif
-
-			return Data;
-		}
-
-		//////////////////////////////////////////////////////////////////////////
-		// 사용중이던 블럭을 해제한다.
-		//
-		// Parameters: (DATA *) 블럭 포인터.
-		// Return: (BOOL) TRUE, FALSE.
-		//////////////////////////////////////////////////////////////////////////
-		bool	Free (DATA *pData)
-		{
-			Chunk::Node *pNode = (Chunk::Node *)((__int64 *)pData--);
-			Chunk *pChunk = pNode->MotherChunk;
-			if ( !pChunk->Free () )
-			{
-				delete pChunk;
-			}
-#ifdef _TEST_
-			//테스트용 코드. tls특성상 총 Free 카운트를 확인 할 수 없으므로 디버그모드에서만 사용.
-			InterlockedIncrement64 (( volatile LONG64 * )&TESTFreeCnt);
-#endif
-
-			return true;
-		}
-
-		/*
-		Tls에 Chunk 포인터 등록
-		*/
-		Chunk *Set_Chunk_TLS (void)
-		{
-			Chunk *p = new Chunk(MaxBLockNum);
-
-			AcquireSRWLockExclusive (&_CS);
-			TlsSetValue (TLSAllocNum, ( LPVOID )p);
-			ReleaseSRWLockExclusive (&_CS);
-			
-			return p;
-		}
-
-		/*
-		GetAllocCount 함수
-		DEBUG모드에서만 수치를 얻을 수 있다.
-		return : int
-		*/
-		int GetAllocCount (void)
-		{
-			return TESTAllocCnt;
-		}
-
-		/*
-		GetFreeCount 함수
-		DEBUG 모드에서만 수치를 얻을 수 있다.
-		return : int
-		*/
-		int GetFreeCount (void)
-		{
-			return TESTFreeCnt;
-		}
-	
-
-
-	private : 
-		/*==========================================
-		Chunk 클래스
-		각 스레드별 TLS로 할당. 및 Alloc과 Free담당.
-		==========================================*/
-		class Chunk
-		{
-		public :
-			struct Node
-			{
-				__int64 SafeTop;
-				DATA Data;
-				__int64 SafeBot;
-				Node *pNextNode;
-				Chunk *MotherChunk;
-				bool Useflag;
-			};
-		public :
-			Node *Destroy_Top_Pointer;
-			Node *TopNode;
-			unsigned __int64 Alloc_Cnt;
-			unsigned __int64 Free_Cnt;
-			int MaxNode;
-
-
-			/*
-			Chunk 생성자.
-			Parameta : Node의 Max갯수.
-			*/
-			Chunk (int MaxNode_Cnt)
-			{
-				MaxNode = MaxNode_Cnt;
-				Alloc_Cnt = 0;
-				Free_Cnt = 0;
-				TopNode = NULL;
-				Node *NewNode;
-
-				for ( int Cnt = MaxNode_Cnt; Cnt > 0; Cnt-- )
-				{
-					NewNode = ( Node * )malloc (sizeof (Node));
-					NewNode->SafeTop = SafeLineTLS;
-					NewNode->SafeBot = SafeLineTLS;
-					NewNode->pNextNode = TopNode;
-					NewNode->MotherChunk = this;
-					NewNode->Useflag = false;
-
-					TopNode = NewNode;
-				}
-				Destroy_Top_Pointer = TopNode;
-			};
-
-			/*
-			Chunk 파괴자.
-			parameta : none
-			*/
-			~Chunk ()
-			{
-				Node *pBackup_Destroyed_Node;
-				Node *pTopNode = Destroy_Top_Pointer;
-
-				int MaxNodeCnt = MaxNode;
-
-				for ( int Cnt = MaxNodeCnt; Cnt > 0; Cnt-- )
-				{
-					pBackup_Destroyed_Node = pTopNode;
-					pTopNode = pTopNode->pNextNode;
-
-					free (pBackup_Destroyed_Node);
-				}
-				return;
-			};
-
-			/*
-			Chunk Alloc 코드
-			return : template DATA Pointer; Alloc할 수 없는 경우 NULL을 반환.
-			*/
-			DATA *Alloc (void)
-			{
-				if ( InterlockedIncrement64 (( volatile  LONG64 * )&Alloc_Cnt) >= MaxNode )
-				{
-					return NULL;
-				}
-
-				Node *backup_TopNode = TopNode;
-				TopNode = backup_TopNode->pNextNode;
-				
-				backup_TopNode->Useflag = true;
-
-				return &backup_TopNode->Data;			
-			}
-
-			/*
-			Chunk Free 함수
-			모든 Chunk내 노드가 전부 Free됬다면 return false 반환.
-			return : bool Flag;
-			*/
-			bool Free (void)
-			{
-				//모든 Chunk내 노드 전부 사용.
-				if ( InterlockedIncrement64 (( volatile  LONG64 * )&Free_Cnt) >= MaxNode )
-				{
-					return false;
-				}
-
-				return true;
-			}
-		};
-
-};
-
 /*---------------------------------------------------------------
 
-MemoryPool.
+	MemoryPool.
 
-메모리 풀 클래스.
-특정 데이타(구조체,클래스,변수)를 일정량 할당 후 나눠쓴다.
+	메모리 풀 클래스.
+	특정 데이타를 일정량 할당 후 나눠쓴다.
 
-- 사용법.
+	- 사용법.
 
-procademy::CMemoryPool<DATA> MemPool(300, FALSE);
-DATA *pData = MemPool.Alloc();
+	CMemoryPool<DATA> MemPool(300);
+	DATA *pData = MemPool.Alloc();
 
-pData 사용
+	pData 사용
 
-MemPool.Free(pData);
-
-
-!.	아주 자주 사용되어 속도에 영향을 줄 메모리라면 생성자에서
-Lock 플래그를 주어 페이징 파일로 복사를 막을 수 있다.
-아주 중요한 경우가 아닌이상 사용 금지.
-
-
-
-주의사항 :	단순히 메모리 사이즈로 계산하여 메모리를 할당후 메모리 블록을 리턴하여 준다.
-클래스를 사용하는 경우 클래스의 생성자 호출 및 클래스정보 할당을 받지 못한다.
-클래스의 가상함수, 상속관계가 전혀 이뤄지지 않는다.
-VirtualAlloc 으로 메모리 할당 후 memset 으로 초기화를 하므로 클래스정보는 전혀 없다.
-
+	MemPool.Free(pData);
 
 ----------------------------------------------------------------*/
+#ifndef  __MEMORYPOOL__H__
+#define  __MEMORYPOOL__H__
 #include <assert.h>
+#include "lib\Library.h"
+#include <Windows.h>
 #include <new.h>
+
+#define TLS_basicChunkSize 10000
+
 
 
 template <class DATA>
-class CMemoryPool_LockFree
+class CMemoryPool
+{
+#define SafeLane 0xff77668888
+private:
+
+	/*========================================================================
+	// 각 블럭 앞에 사용될 노드 구조체.
+	========================================================================*/
+	struct st_BLOCK_NODE
+	{
+		DATA Data;
+		INT64 Safe;
+
+		st_BLOCK_NODE ()
+		{
+			stpNextBlock = NULL;
+		}
+
+		st_BLOCK_NODE *stpNextBlock;
+	};
+
+
+	void LOCK ()
+	{
+		AcquireSRWLockExclusive (&_CS);
+	}
+	void Release ()
+	{
+		ReleaseSRWLockExclusive (&_CS);
+	}
+
+public:
+
+	/*========================================================================
+	// 생성자, 파괴자.
+	//
+	// Parameters:	(int) 최대 블럭 개수.
+	// Return:		없음.
+	========================================================================*/
+	CMemoryPool (int iBlockNum)
+	{
+		st_BLOCK_NODE *pNode, *pPreNode;
+		InitializeSRWLock (&_CS);
+		/*========================================================================
+		// TOP 노드 할당
+		========================================================================*/
+		_pTop = NULL;
+
+		/*========================================================================
+		// 메모리 풀 크기 설정
+		========================================================================*/
+		m_iBlockCount = iBlockNum;
+		if ( iBlockNum < 0 )
+		{
+			CCrashDump::Crash ();
+			return;	// Dump
+		}
+		else if ( iBlockNum == 0 )
+		{
+			m_bStoreFlag = true;
+			_pTop = NULL;
+		}
+
+		/*========================================================================
+		// DATA * 크기만 큼 메모리 할당 후 BLOCK 연결
+		========================================================================*/
+		else
+		{
+			m_bStoreFlag = false;
+
+			pNode = ( st_BLOCK_NODE * )malloc (sizeof (st_BLOCK_NODE));
+			_pTop = pNode;
+			pPreNode = pNode;
+
+			for ( int iCnt = 1; iCnt < iBlockNum; iCnt++ )
+			{
+				pNode = ( st_BLOCK_NODE * )malloc (sizeof (st_BLOCK_NODE));
+				pPreNode->stpNextBlock = pNode;
+				pPreNode = pNode;
+			}
+		}
+	}
+
+	virtual	~CMemoryPool ()
+	{
+		st_BLOCK_NODE *pNode;
+
+		for ( int iCnt = 0; iCnt < m_iBlockCount; iCnt++ )
+		{
+			pNode = _pTop;
+			_pTop = _pTop->stpNextBlock;
+			free (pNode);
+		}
+	}
+
+	/*========================================================================
+	// 블럭 하나를 할당받는다.
+	//
+	// Parameters: PlacementNew여부.
+	// Return:		(DATA *) 데이타 블럭 포인터.
+	========================================================================*/
+	DATA	*Alloc (bool bPlacementNew = true)
+	{
+		st_BLOCK_NODE *stpBlock;
+		int iBlockCount = m_iBlockCount;
+
+
+		InterlockedIncrement64 (( LONG64 * )&m_iAllocCount);
+
+		if ( iBlockCount < m_iAllocCount )
+		{
+			if ( m_bStoreFlag )
+			{
+				stpBlock = ( st_BLOCK_NODE * )malloc (sizeof (st_BLOCK_NODE));
+				InterlockedIncrement64 (( LONG64 * )&m_iBlockCount);
+			}
+
+			else
+				return nullptr;
+		}
+
+		else
+		{
+			LOCK ();
+
+			stpBlock = _pTop;
+			_pTop = _pTop->stpNextBlock;
+
+			Release ();
+		}
+
+		if ( bPlacementNew )
+		{
+			new (( DATA * )&stpBlock->Data) DATA;
+		}
+
+		stpBlock->Safe = SafeLane;
+
+
+		return &stpBlock->Data;
+	}
+
+	/*========================================================================
+	// 사용중이던 블럭을 해제한다.
+	//
+	// Parameters:	(DATA *) 블럭 포인터.
+	// Return:		(BOOL) TRUE, FALSE.
+	========================================================================*/
+	bool	Free (DATA *pData)
+	{
+		st_BLOCK_NODE *stpBlock;
+
+
+		stpBlock = (( st_BLOCK_NODE * )pData);
+
+		if ( stpBlock->Safe != SafeLane )
+		{
+			return false;
+		}
+
+		LOCK ();
+
+		stpBlock->stpNextBlock = _pTop;
+		_pTop = stpBlock;
+
+		Release ();
+		
+		InterlockedDecrement64 (( LONG64 * )&m_iAllocCount);
+		
+		return true;
+	}
+
+
+	/*========================================================================
+	// 현재 사용중인 블럭 개수를 얻는다.
+	//
+	// Parameters:	없음.
+	// Return:		(int) 사용중인 블럭 개수.
+	========================================================================*/
+	int		GetAllocCount (void)
+	{
+		return m_iAllocCount;
+	}
+
+	/*========================================================================
+	// 메모리풀 블럭 전체 개수를 얻는다.
+	//
+	// Parameters:	없음.
+	// Return:		(int) 전체 블럭 개수.
+	========================================================================*/
+	int		GetFullCount (void)
+	{
+		return m_iBlockCount;
+	}
+
+	/*========================================================================
+	// 현재 보관중인 블럭 개수를 얻는다.
+	//
+	// Parameters:	없음.
+	// Return:		(int) 보관중인 블럭 개수.
+	========================================================================*/
+	int		GetFreeCount (void)
+	{
+		return m_iBlockCount - m_iAllocCount;
+	}
+
+private:
+	/*========================================================================
+	// 블록 스택의 탑
+	========================================================================*/
+	st_BLOCK_NODE *_pTop;
+
+	/*========================================================================
+	// 메모리 동적 플래그, true면 없으면 동적할당 함
+	========================================================================*/
+	bool m_bStoreFlag;
+
+	/*========================================================================
+	// 현재 사용중인 블럭 개수
+	========================================================================*/
+	int m_iAllocCount;
+
+	/*========================================================================
+	// 전체 블럭 개수
+	========================================================================*/
+	int m_iBlockCount;
+
+	SRWLOCK _CS;
+
+};
+
+template <class DATA>
+class CMemoryPool_LF
 {
 private:
 
-	/* **************************************************************** */
+	/*========================================================================
 	// 각 블럭 앞에 사용될 노드 구조체.
-	/* **************************************************************** */
+	========================================================================*/
 	struct st_BLOCK_NODE
 	{
 		st_BLOCK_NODE ()
@@ -668,9 +275,9 @@ private:
 		st_BLOCK_NODE *stpNextBlock;
 	};
 
-	/* **************************************************************** */
+	/*========================================================================
 	// 락프리 메모리 풀의 탑 노드
-	/* **************************************************************** */
+	========================================================================*/
 	struct st_TOP_NODE
 	{
 		st_BLOCK_NODE *pTopNode;
@@ -679,41 +286,43 @@ private:
 
 public:
 
-	//////////////////////////////////////////////////////////////////////////
+	/*========================================================================
 	// 생성자, 파괴자.
 	//
 	// Parameters:	(int) 최대 블럭 개수.
-	//				(bool) 메모리 Lock 플래그 - 중요하게 속도를 필요로 한다면 Lock.
-	// Return:
-	//////////////////////////////////////////////////////////////////////////
-	CMemoryPool_LockFree (int iBlockNum, bool bLockFlag = false)
+	// Return:		없음.
+	========================================================================*/
+	CMemoryPool_LF (int iBlockNum)
 	{
 		st_BLOCK_NODE *pNode, *pPreNode;
 
-		////////////////////////////////////////////////////////////////
+		/*========================================================================
 		// TOP 노드 할당
-		////////////////////////////////////////////////////////////////
+		========================================================================*/
 		_pTop = ( st_TOP_NODE * )_aligned_malloc (sizeof (st_TOP_NODE), 16);
 		_pTop->pTopNode = NULL;
 		_pTop->iUniqueNum = 0;
 
 		_iUniqueNum = 0;
 
-		////////////////////////////////////////////////////////////////
+		/*========================================================================
 		// 메모리 풀 크기 설정
-		////////////////////////////////////////////////////////////////
+		========================================================================*/
 		m_iBlockCount = iBlockNum;
-		if ( iBlockNum < 0 )	return;	// Dump
-
+		if ( iBlockNum < 0 )
+		{
+			CCrashDump::Crash ();
+			return;	// Dump
+		}
 		else if ( iBlockNum == 0 )
 		{
 			m_bStoreFlag = true;
 			_pTop->pTopNode = NULL;
 		}
 
-		////////////////////////////////////////////////////////////////
+		/*========================================================================
 		// DATA * 크기만 큼 메모리 할당 후 BLOCK 연결
-		////////////////////////////////////////////////////////////////
+		========================================================================*/
 		else
 		{
 			m_bStoreFlag = false;
@@ -731,7 +340,7 @@ public:
 		}
 	}
 
-	virtual	~CMemoryPool_LockFree ()
+	virtual	~CMemoryPool_LF ()
 	{
 		st_BLOCK_NODE *pNode;
 
@@ -743,12 +352,12 @@ public:
 		}
 	}
 
-	//////////////////////////////////////////////////////////////////////////
+	/*========================================================================
 	// 블럭 하나를 할당받는다.
 	//
-	// Parameters: 없음.
-	// Return: (DATA *) 데이타 블럭 포인터.
-	//////////////////////////////////////////////////////////////////////////
+	// Parameters: PlacementNew여부.
+	// Return:		(DATA *) 데이타 블럭 포인터.
+	========================================================================*/
 	DATA	*Alloc (bool bPlacementNew = true)
 	{
 		st_BLOCK_NODE *stpBlock;
@@ -761,7 +370,6 @@ public:
 			if ( m_bStoreFlag )
 			{
 				stpBlock = ( st_BLOCK_NODE * )malloc (sizeof (DATA) + sizeof (st_BLOCK_NODE));
-				stpBlock->stpNextBlock = NULL;
 				InterlockedIncrement64 (( LONG64 * )&m_iBlockCount);
 			}
 
@@ -791,12 +399,12 @@ public:
 		return ( DATA * )(stpBlock + 1);
 	}
 
-	//////////////////////////////////////////////////////////////////////////
+	/*========================================================================
 	// 사용중이던 블럭을 해제한다.
 	//
-	// Parameters: (DATA *) 블럭 포인터.
-	// Return: (BOOL) TRUE, FALSE.
-	//////////////////////////////////////////////////////////////////////////
+	// Parameters:	(DATA *) 블럭 포인터.
+	// Return:		(BOOL) TRUE, FALSE.
+	========================================================================*/
 	bool	Free (DATA *pData)
 	{
 		st_BLOCK_NODE *stpBlock;
@@ -818,55 +426,328 @@ public:
 	}
 
 
-	//////////////////////////////////////////////////////////////////////////
+	/*========================================================================
 	// 현재 사용중인 블럭 개수를 얻는다.
 	//
-	// Parameters: 없음.
-	// Return: (int) 사용중인 블럭 개수.
-	//////////////////////////////////////////////////////////////////////////
+	// Parameters:	없음.
+	// Return:		(int) 사용중인 블럭 개수.
+	========================================================================*/
 	int		GetAllocCount (void)
 	{
 		return m_iAllocCount;
 	}
 
-	int		GetBlockCount (void)
+	/*========================================================================
+	// 메모리풀 블럭 전체 개수를 얻는다.
+	//
+	// Parameters:	없음.
+	// Return:		(int) 전체 블럭 개수.
+	========================================================================*/
+	int		GetFullCount (void)
 	{
 		return m_iBlockCount;
 	}
+
+	/*========================================================================
+	// 현재 보관중인 블럭 개수를 얻는다.
+	//
+	// Parameters:	없음.
+	// Return:		(int) 보관중인 블럭 개수.
+	========================================================================*/
+	int		GetFreeCount (void)
+	{
+		return m_iBlockCount - m_iAllocCount;
+	}
+
 private:
-	//////////////////////////////////////////////////////////////////////////
+	/*========================================================================
 	// 블록 스택의 탑
-	//////////////////////////////////////////////////////////////////////////
+	========================================================================*/
 	st_TOP_NODE *_pTop;
 
-	//////////////////////////////////////////////////////////////////////////
+	/*========================================================================
 	// 탑의 Unique Number
-	//////////////////////////////////////////////////////////////////////////
+	========================================================================*/
 	__int64 _iUniqueNum;
 
-	//////////////////////////////////////////////////////////////////////////
-	// 메모리 Lock 플래그
-	//////////////////////////////////////////////////////////////////////////
-	bool m_bLockFlag;
-
-	//////////////////////////////////////////////////////////////////////////
+	/*========================================================================
 	// 메모리 동적 플래그, true면 없으면 동적할당 함
-	//////////////////////////////////////////////////////////////////////////
+	========================================================================*/
 	bool m_bStoreFlag;
 
-	//////////////////////////////////////////////////////////////////////////
+	/*========================================================================
 	// 현재 사용중인 블럭 개수
-	//////////////////////////////////////////////////////////////////////////
+	========================================================================*/
 	int m_iAllocCount;
 
-	//////////////////////////////////////////////////////////////////////////
+	/*========================================================================
 	// 전체 블럭 개수
-	//////////////////////////////////////////////////////////////////////////
+	========================================================================*/
 	int m_iBlockCount;
+
+
 };
 
-}
+template <class DATA>
+class CMemoryPool_TLS
+{
+private:
+	/*========================================================================
+	// 청크
+	========================================================================*/
+	template<class DATA>
+	class Chunk
+	{
+	public:
+#define SafeLane 0xff77668888
+		struct st_BLOCK_NODE
+		{
+			DATA BLOCK;
+			INT64 Safe;
+			Chunk *pChunk_Main;
+		};
+	private :
 
-#pragma pack(4)
+
+		st_BLOCK_NODE *_pArray;
+		CMemoryPool_TLS<DATA> *_pMain_Manager;
+
+		int FullCnt;
+		int _Top;
+		int FreeCnt;
+	public:
+		////////////////////////////////////////////////////
+		//Chunk 생성자
+		////////////////////////////////////////////////////
+		Chunk ()
+		{
+		}
+		~Chunk ()
+		{
+			free (_pArray);
+		}
+
+		bool ChunkSetting (int iBlockNum, CMemoryPool_TLS<DATA> *pManager)
+		{
+			_Top = 0;
+			FreeCnt = 0;
+			if ( iBlockNum < 0 )
+			{
+				CCrashDump::Crash ();
+			}
+			else if ( iBlockNum == 0 )
+			{
+				iBlockNum = TLS_basicChunkSize;
+			}
+
+			FullCnt = iBlockNum;
+			_pMain_Manager = pManager;
+			_pArray = ( st_BLOCK_NODE * )malloc (sizeof (st_BLOCK_NODE) *iBlockNum);
+
+
+			for ( int Cnt = 0; Cnt < iBlockNum; Cnt++ )
+			{
+				_pArray[Cnt].pChunk_Main = this;
+				_pArray[Cnt].Safe = SafeLane;
+			}
+			return true;
+		}
+
+		//////////////////////////////////////////////////////
+		// 블럭 하나를 할당받는다.
+		//
+		// Parameters: PlacementNew여부.
+		// Return:		(DATA *) 데이타 블럭 포인터.
+		//////////////////////////////////////////////////////
+		DATA	*Alloc (bool bPlacementNew = true)
+		{
+			int iBlockCount = InterlockedIncrement (( volatile long * )&_Top);
+			st_BLOCK_NODE *stpBlock = &_pArray[iBlockCount - 1];
+
+			if ( bPlacementNew )
+			{
+				new (( DATA * )&stpBlock->BLOCK) DATA;
+			}
+
+			if ( iBlockCount == FullCnt )
+			{
+				//메모리풀에 존재하는 청크 블록 지우고 새로운 블록으로 셋팅.
+				_pMain_Manager->Chunk_Alloc ();
+			}
+
+			return &stpBlock->BLOCK;
+
+		}
+
+		bool Free (DATA *pData)
+		{
+			st_BLOCK_NODE *stpBlock;
+
+
+			stpBlock = (( st_BLOCK_NODE * )pData);
+
+			if ( stpBlock->Safe != SafeLane )
+			{
+				return false;
+			}
+
+			int Cnt = InterlockedIncrement (( volatile long * )&FreeCnt);
+
+			if ( Cnt == FullCnt )
+			{
+				free(this);
+			}
+
+			return true;
+
+		}
+	};
+
+
+	int Chunk_in_BlockCnt;
+	DWORD TlsNum;
+public:
+	/*========================================================================
+	// 생성자
+	========================================================================*/
+	CMemoryPool_TLS (int iBlockNum)
+	{
+		if ( iBlockNum == 0 )
+		{
+			iBlockNum = TLS_basicChunkSize;
+		}
+
+		Chunk_in_BlockCnt = iBlockNum;
+		TlsNum = TlsAlloc ();
+
+		//TLS가 생성이 불가한 상태이므로 자기자신을 파괴하고 종료.
+		if ( TlsNum == TLS_OUT_OF_INDEXES )
+		{
+			CCrashDump::Crash ();
+			return;//Dump
+		}
+	}
+	~CMemoryPool_TLS ()
+	{
+		return;
+	}
+
+	/*========================================================================
+	// 블럭 하나를 할당 받는다.
+	//
+	// Parameters:	PlacementNew 여부.
+	// Return:		(DATA *) 블럭 포인터.
+	========================================================================*/
+	DATA *Alloc (bool bPlacemenenew = true)
+	{
+		//해당 스레드에서 최초 실행될때. 초기화 작업.
+		Chunk<DATA> *pChunk = (Chunk<DATA>  * )TlsGetValue (TlsNum);
+
+		if ( pChunk == NULL )
+		{
+
+			pChunk = (Chunk<DATA> *)malloc (sizeof (Chunk<DATA>));
+			pChunk->ChunkSetting (Chunk_in_BlockCnt, this);
+
+			TlsSetValue (TlsNum, pChunk);
+
+			InterlockedAdd (( volatile long * )&m_iBlockCount, Chunk_in_BlockCnt);
+
+		}
+
+
+		DATA *pData = pChunk->Alloc ();
+
+		InterlockedIncrement (( volatile long * )&m_iAllocCount);
+
+		return pData;
+
+	}
+
+	/*========================================================================
+	// 사용중이던 블럭을 해제한다.
+	//
+	// Parameters:	(DATA *) 블럭 포인터.
+	// Return:		(BOOL) TRUE, FALSE.
+	========================================================================*/
+	bool Free (DATA *pDATA)
+	{
+		Chunk<DATA>::st_BLOCK_NODE *pNode = (Chunk<DATA>::st_BLOCK_NODE *) pDATA;
+
+		bool chk = pNode->pChunk_Main->Free (pDATA);
+			InterlockedDecrement (( volatile long * )&m_iAllocCount);
+			InterlockedIncrement (( volatile long * )&m_iFreeCount);
+		return chk;
+	}
+public:
+
+
+	/*========================================================================
+	// Alloc이 다된 Chunk블럭을 교체한다.
+	//
+	// Parameters:	없음
+	// Return:		없음
+	========================================================================*/
+	void Chunk_Alloc ()
+	{
+		TlsSetValue (TlsNum, NULL);
+
+		return;
+	}
+
+
+	/*========================================================================
+	// 현재 사용중인 블럭 개수를 얻는다.
+	//
+	// ! 주의
+	//	TLC의 성능상 한계로 인해 사용되지 않음.
+	//
+	// Parameters:	없음.
+	// Return:		(int) 사용중인 블럭 개수.
+	========================================================================*/
+	int		GetAllocCount (void)
+	{
+		return m_iAllocCount;
+		//return 0;
+	}
+	int DecrementFreeCount (void)
+	{
+
+	}
+	/*========================================================================
+	// 메모리풀 블럭 전체 개수를 얻는다.
+	//
+	// Parameters:	없음.
+	// Return:		(int) 전체 블럭 개수.
+	========================================================================*/
+	int		GetFullCount (void)
+	{
+		return m_iBlockCount;
+	}
+
+	/*========================================================================
+	// 현재 보관중인 블럭 개수를 얻는다.
+	//
+	// ! 주의
+	//	TLC의 성능상 한계로 인해 사용되지 않음.
+	//
+	// Parameters:	없음.
+	// Return:		(int) 보관중인 블럭 개수.
+	========================================================================*/
+	int		GetFreeCount (void)
+	{
+		int FreeCnt = m_iFreeCount;
+		m_iFreeCount = 0;
+		return FreeCnt;
+	//	return 0;
+	}
+
+private:
+
+	int m_iBlockCount;
+	int m_iAllocCount;
+	int m_iFreeCount;
+};
+
 
 #endif
