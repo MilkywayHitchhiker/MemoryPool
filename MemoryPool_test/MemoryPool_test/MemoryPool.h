@@ -22,7 +22,7 @@
 #include <Windows.h>
 #include <new.h>
 
-#define TLS_basicChunkSize 10000
+#define TLS_basicChunkSize 4000
 
 
 
@@ -504,7 +504,7 @@ private:
 		{
 			DATA BLOCK;
 			INT64 Safe;
-			Chunk *pChunk_Main;
+			Chunk<DATA> *pChunk_Main;
 		};
 	private :
 
@@ -584,7 +584,7 @@ private:
 			st_BLOCK_NODE *stpBlock;
 
 
-			stpBlock = (( st_BLOCK_NODE * )pData);
+			stpBlock = ( st_BLOCK_NODE * )pData;
 
 			if ( stpBlock->Safe != SafeLane )
 			{
@@ -595,7 +595,7 @@ private:
 
 			if ( Cnt == FullCnt )
 			{
-				free(this);
+				stpBlock->pChunk_Main->_pMain_Manager->Chunk_Free (this);
 			}
 
 			return true;
@@ -651,8 +651,7 @@ public:
 
 			TlsSetValue (TlsNum, pChunk);
 
-			InterlockedAdd (( volatile long * )&m_iBlockCount, Chunk_in_BlockCnt);
-
+			InterlockedIncrement (( volatile long * )&m_iBlockCount);
 		}
 
 
@@ -694,7 +693,12 @@ public:
 
 		return;
 	}
-
+	void Chunk_Free (Chunk<DATA> *pChunk)
+	{
+		InterlockedDecrement (( volatile long * )&m_iBlockCount);
+		free (pChunk);
+		return;
+	}
 
 	/*========================================================================
 	// 현재 사용중인 블럭 개수를 얻는다.
@@ -710,10 +714,6 @@ public:
 		return m_iAllocCount;
 		//return 0;
 	}
-	int DecrementFreeCount (void)
-	{
-
-	}
 	/*========================================================================
 	// 메모리풀 블럭 전체 개수를 얻는다.
 	//
@@ -722,7 +722,7 @@ public:
 	========================================================================*/
 	int		GetFullCount (void)
 	{
-		return m_iBlockCount;
+		return m_iBlockCount * Chunk_in_BlockCnt;
 	}
 
 	/*========================================================================

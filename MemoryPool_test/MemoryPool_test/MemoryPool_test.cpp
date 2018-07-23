@@ -72,6 +72,9 @@ int main()
 		wprintf (L"Memory Pool Full	: %d\n", IFullCount);
 		wprintf (L"----------------------------------------------------\n\n");
 
+		lAllocTPS = 0;
+		lFreeTPS = 0;
+
 		Sleep (999);
 	}
 
