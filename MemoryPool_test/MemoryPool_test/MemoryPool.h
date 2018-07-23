@@ -696,6 +696,8 @@ public:
 	void Chunk_Free (Chunk<DATA> *pChunk)
 	{
 		InterlockedDecrement (( volatile long * )&m_iBlockCount);
+
+		pChunk->~Chunk ();
 		free (pChunk);
 		return;
 	}
