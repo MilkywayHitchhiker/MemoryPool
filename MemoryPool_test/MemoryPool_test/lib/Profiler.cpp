@@ -157,8 +157,8 @@ void ProfileStructher::Print_Profile (void)
 
 	_wfopen_s (&fp,L"Profile.txt",L"w+t,ccs=UNICODE");
 
-	fwprintf_s (fp, L"%-13s l %-17s l %-12s   l %-12s   l %-12s   l %-8s l\n", L"ThreadID", L"Name", L"Average", L"MinTime", L"MaxTime", L"TotalCaLL");
-	fwprintf_s (fp, L"ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ\n");
+	fwprintf_s (fp, L"%-13s l %-17s l %-11s   l %-11s   l %-11s   l %-8s l\n", L"ThreadID", L"Name", L"Average", L"MinTime", L"MaxTime", L"TotalCaLL");
+	fwprintf_s (fp, L"ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ\n");
 
 	for ( int TCnt = 0; TCnt < ThreadMax; TCnt++ )
 	{
@@ -182,6 +182,7 @@ void ProfileStructher::Print_Profile (void)
 				fwprintf_s (fp, L" %-12d l %-17ls l %-11.4fµs l %-11.4fµs l %-11.4fµs l %8lld  l\n", Thread[TCnt].ThreadID,Thread[TCnt].profile_Array[cnt].Name, Average, MinTime, MaxTime, Thread[TCnt].profile_Array[cnt].CallCNT);
 			}
 		}
+		fwprintf_s (fp, L"\n\n");
 	}
 
 	fclose (fp);
@@ -236,6 +237,8 @@ void Profile_End (WCHAR *name)
 
 void PROFILE_KeyProc (void)
 {
+	Profile.Print_Profile ();
+	/*
 	//p
 	if ( GetAsyncKeyState (0x50) & 0x8001 )
 	{
@@ -246,5 +249,6 @@ void PROFILE_KeyProc (void)
 	{
 		Profile.ClearProfile ();
 	}
+	*/
 	return;
 }

@@ -674,8 +674,7 @@ public:
 		Chunk<DATA>::st_BLOCK_NODE *pNode = (Chunk<DATA>::st_BLOCK_NODE *) pDATA;
 
 		bool chk = pNode->pChunk_Main->Free (pDATA);
-			InterlockedDecrement (( volatile long * )&m_iAllocCount);
-			InterlockedIncrement (( volatile long * )&m_iFreeCount);
+		InterlockedDecrement (( volatile long * )&m_iAllocCount);
 		return chk;
 	}
 public:
@@ -738,9 +737,7 @@ public:
 	========================================================================*/
 	int		GetFreeCount (void)
 	{
-		int FreeCnt = m_iFreeCount;
-		m_iFreeCount = 0;
-		return FreeCnt;
+		return m_iBlockCount - m_iAllocCount;
 	//	return 0;
 	}
 
@@ -748,7 +745,6 @@ private:
 
 	int m_iBlockCount;
 	int m_iAllocCount;
-	int m_iFreeCount;
 };
 
 
