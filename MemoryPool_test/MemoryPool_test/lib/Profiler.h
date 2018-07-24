@@ -33,7 +33,7 @@ private:
 
 //	Profile profile_Array[Max];
 	LARGE_INTEGER SecondFrequency;
-	double MicroSecond;
+	double NanoSecond;
 
 public:
 	ProfileStructher(void)
@@ -57,7 +57,7 @@ public:
 		}
 
 		QueryPerformanceFrequency (&SecondFrequency);
-		MicroSecond = (double) SecondFrequency.QuadPart / 1000000;
+		NanoSecond = (double) SecondFrequency.QuadPart / 1000000000;
 		setlocale (LC_ALL, "");
 	}
 	~ProfileStructher (void)

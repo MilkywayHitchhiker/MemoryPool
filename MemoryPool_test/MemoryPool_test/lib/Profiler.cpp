@@ -157,7 +157,7 @@ void ProfileStructher::Print_Profile (void)
 
 	_wfopen_s (&fp,L"Profile.txt",L"w+t,ccs=UNICODE");
 
-	fwprintf_s (fp, L"%-13s l %-17s l %-11s   l %-11s   l %-11s   l %-8s l\n", L"ThreadID", L"Name", L"Average", L"MinTime", L"MaxTime", L"TotalCaLL");
+	fwprintf_s (fp, L"%-13s l %-17s l %-20s   l %-20s   l %-20s   l %-8s l\n", L"ThreadID", L"Name", L"Average", L"MinTime", L"MaxTime", L"TotalCaLL");
 	fwprintf_s (fp, L"ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ\n");
 
 	for ( int TCnt = 0; TCnt < ThreadMax; TCnt++ )
@@ -175,11 +175,11 @@ void ProfileStructher::Print_Profile (void)
 				Thread[TCnt].profile_Array[cnt].TotalTime += Thread[TCnt].profile_Array[cnt].Max_Time[1];
 
 				i_Average = Thread[TCnt].profile_Array[cnt].TotalTime / Thread[TCnt].profile_Array[cnt].CallCNT;
-				Average = ( double )i_Average / MicroSecond;
-				MinTime = ( double )Thread[TCnt].profile_Array[cnt].Min_Time[1] / MicroSecond;
-				MaxTime = ( double )Thread[TCnt].profile_Array[cnt].Max_Time[1] / MicroSecond;
+				Average = ( double )i_Average / NanoSecond;
+				MinTime = ( double )Thread[TCnt].profile_Array[cnt].Min_Time[1] / NanoSecond;
+				MaxTime = ( double )Thread[TCnt].profile_Array[cnt].Max_Time[1] / NanoSecond;
 
-				fwprintf_s (fp, L" %-12d l %-17ls l %-11.4fµs l %-11.4fµs l %-11.4fµs l %8lld  l\n", Thread[TCnt].ThreadID,Thread[TCnt].profile_Array[cnt].Name, Average, MinTime, MaxTime, Thread[TCnt].profile_Array[cnt].CallCNT);
+				fwprintf_s (fp, L" %-12d l %-17ls l %-20.4fµs l %-20.4fµs l %-20.4fµs l %8lld  l\n", Thread[TCnt].ThreadID,Thread[TCnt].profile_Array[cnt].Name, Average, MinTime, MaxTime, Thread[TCnt].profile_Array[cnt].CallCNT);
 			}
 		}
 		fwprintf_s (fp, L"\n\n");
