@@ -79,6 +79,7 @@ public:
 		// 메모리 풀 크기 설정
 		========================================================================*/
 		m_iBlockCount = iBlockNum;
+		m_iAllocCount = 0;
 		if ( iBlockNum < 0 )
 		{
 			CCrashDump::Crash ();
@@ -309,6 +310,7 @@ public:
 		// 메모리 풀 크기 설정
 		========================================================================*/
 		m_iBlockCount = iBlockNum;
+		m_iAllocCount = 0;
 		if ( iBlockNum < 0 )
 		{
 			CCrashDump::Crash ();
@@ -620,6 +622,8 @@ public:
 		Chunk_in_BlockCnt = iBlockNum;
 		TlsNum = TlsAlloc ();
 
+		m_iBlockCount = iBlockNum;
+		m_iAllocCount = 0;
 		//TLS가 생성이 불가한 상태이므로 자기자신을 파괴하고 종료.
 		if ( TlsNum == TLS_OUT_OF_INDEXES )
 		{
@@ -723,7 +727,7 @@ public:
 	========================================================================*/
 	int		GetFullCount (void)
 	{
-		return m_iBlockCount * Chunk_in_BlockCnt;
+		return m_iBlockCount;
 	}
 
 	/*========================================================================
