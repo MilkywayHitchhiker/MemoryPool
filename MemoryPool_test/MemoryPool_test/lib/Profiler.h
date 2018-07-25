@@ -16,11 +16,11 @@ private:
 		WCHAR Name[64];
 		
 		bool Beginflag;		//프로파일 시작여부
-		__int64 Start_Time;	//시작시간
-		__int64 TotalTime;	//모든 시간의 합계
-		__int64 Min_Time[2];	//0번은 최소 걸린시간. 너무 작은값. 1번이 그 다음값
-		__int64 Max_Time[2];	//0번은 최대 걸린 시간. 너무 큰 값. 1번은 그 다음 큰값.
-		unsigned __int64 CallCNT;	//call한 횟수.
+		UINT64 Start_Time;	//시작시간
+		UINT64 TotalTime;	//모든 시간의 합계
+		UINT64 Min_Time[2];	//0번은 최소 걸린시간. 너무 작은값. 1번이 그 다음값
+		UINT64 Max_Time[2];	//0번은 최대 걸린 시간. 너무 큰 값. 1번은 그 다음 큰값.
+		UINT64 CallCNT;	//call한 횟수.
 	};
 	struct ProfileThread
 	{

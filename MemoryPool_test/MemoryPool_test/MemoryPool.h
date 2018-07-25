@@ -22,7 +22,7 @@
 #include <Windows.h>
 #include <new.h>
 
-#define TLS_basicChunkSize 4000
+#define TLS_basicChunkSize 10000
 
 
 
@@ -146,7 +146,9 @@ public:
 			}
 
 			else
+			{
 				return nullptr;
+			}
 		}
 
 		else
@@ -526,7 +528,7 @@ private:
 		}
 		~Chunk ()
 		{
-			free (_pArray);
+
 		}
 
 		bool ChunkSetting (int iBlockNum, CMemoryPool_TLS<DATA> *pManager)
@@ -563,30 +565,35 @@ private:
 		//////////////////////////////////////////////////////
 		DATA	*Alloc (bool bPlacementNew = true)
 		{
+			CMemoryPool_TLS<DATA> *pMain_Manager = _pMain_Manager;
+			int iFullCount = FullCnt;
 			int iBlockCount = ++_Top;
-			st_BLOCK_NODE *stpBlock = &_pArray[iBlockCount - 1];
+
+		//	st_BLOCK_NODE *stpBlock = &_pArray[iBlockCount - 1];
+			DATA * pBLOCK = &_pArray[iBlockCount - 1].BLOCK;
+
 
 			if ( bPlacementNew )
 			{
-				new (( DATA * )&stpBlock->BLOCK) DATA;
+				new (pBLOCK) DATA;
 			}
 
-			if ( iBlockCount == FullCnt )
+
+			if ( iBlockCount == iFullCount )
 			{
 				//메모리풀에 존재하는 청크 블록 지우고 새로운 블록으로 셋팅.
-				_pMain_Manager->Chunk_Alloc ();
+				pMain_Manager->Chunk_Alloc ();
 			}
 
-			return &stpBlock->BLOCK;
+			return pBLOCK;
 
 		}
 
 		bool Free (DATA *pData)
 		{
-			st_BLOCK_NODE *stpBlock;
-
-
-			stpBlock = ( st_BLOCK_NODE * )pData;
+			CMemoryPool_TLS<DATA> *pMain_Manager = _pMain_Manager;
+			int iFullCount = FullCnt;
+			st_BLOCK_NODE *stpBlock = ( st_BLOCK_NODE * )pData;
 
 			if ( stpBlock->Safe != SafeLane )
 			{
@@ -595,9 +602,13 @@ private:
 
 			int Cnt = InterlockedIncrement (( volatile long * )&FreeCnt);
 
-			if ( Cnt == FullCnt )
+			if ( Cnt == iFullCount )
 			{
-				_pMain_Manager->Chunk_Free (this);
+
+				pMain_Manager->Chunk_Free ();
+
+				free (_pArray);
+				free (this);
 			}
 
 			return true;
@@ -644,23 +655,15 @@ public:
 	========================================================================*/
 	DATA *Alloc (bool bPlacemenenew = true)
 	{
-		//해당 스레드에서 최초 실행될때. 초기화 작업.
 		Chunk<DATA> *pChunk = (Chunk<DATA>  * )TlsGetValue (TlsNum);
 
+		//해당 스레드에서 최초 실행될때. 초기화 작업.
 		if ( pChunk == NULL )
 		{
-
-			pChunk = (Chunk<DATA> *)malloc (sizeof (Chunk<DATA>));
-			pChunk->ChunkSetting (Chunk_in_BlockCnt, this);
-
-			TlsSetValue (TlsNum, pChunk);
-
-			InterlockedIncrement (( volatile long * )&m_iBlockCount);
+			pChunk = Chunk_Alloc ();
 		}
 
-
 		DATA *pData = pChunk->Alloc ();
-
 	//	InterlockedIncrement (( volatile long * )&m_iAllocCount);
 
 		return pData;
@@ -690,17 +693,22 @@ public:
 	// Parameters:	없음
 	// Return:		없음
 	========================================================================*/
-	void Chunk_Alloc ()
+	Chunk<DATA> *Chunk_Alloc ()
 	{
-		TlsSetValue (TlsNum, NULL);
-		return;
+		Chunk<DATA> *pChunk = (Chunk<DATA>  *)TlsGetValue (TlsNum);
+
+		pChunk = (Chunk<DATA> *)malloc (sizeof (Chunk<DATA>));
+		pChunk->ChunkSetting (Chunk_in_BlockCnt, this);
+
+		TlsSetValue (TlsNum, pChunk);
+
+		InterlockedIncrement (( volatile long * )&m_iBlockCount);
+
+		return pChunk;
 	}
-	void Chunk_Free (Chunk<DATA> *pChunk)
+	void Chunk_Free (void)
 	{
 		InterlockedDecrement (( volatile long * )&m_iBlockCount);
-
-		pChunk->~Chunk ();
-		free (pChunk);
 		return;
 	}
 

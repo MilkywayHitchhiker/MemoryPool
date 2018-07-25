@@ -72,7 +72,7 @@ bool ProfileStructher::Set_Profile (WCHAR *name, __int64 SetTime)
 bool ProfileStructher::End_Profile (WCHAR *name, __int64 EndTime)
 {
 	int cnt;
-	__int64 Time;
+	UINT64 Time;
 	ProfileThread *p = ( ProfileThread * )pThread;
 
 	for ( cnt = 0; cnt < Max; cnt++ )
@@ -150,7 +150,7 @@ void ProfileStructher::Print_Profile (void)
 	int cnt;
 	FILE *fp;
 	double Average;
-	__int64 i_Average;
+	double i_Average;
 	double MinTime;
 	double MaxTime;
 
@@ -174,8 +174,8 @@ void ProfileStructher::Print_Profile (void)
 				Thread[TCnt].profile_Array[cnt].TotalTime += Thread[TCnt].profile_Array[cnt].Min_Time[1];
 				Thread[TCnt].profile_Array[cnt].TotalTime += Thread[TCnt].profile_Array[cnt].Max_Time[1];
 
-				i_Average = Thread[TCnt].profile_Array[cnt].TotalTime / Thread[TCnt].profile_Array[cnt].CallCNT;
-				Average = ( double )i_Average / NanoSecond;
+				i_Average = ( double )Thread[TCnt].profile_Array[cnt].TotalTime / Thread[TCnt].profile_Array[cnt].CallCNT;
+				Average = i_Average / NanoSecond;
 				MinTime = ( double )Thread[TCnt].profile_Array[cnt].Min_Time[1] / NanoSecond;
 				MaxTime = ( double )Thread[TCnt].profile_Array[cnt].Max_Time[1] / NanoSecond;
 

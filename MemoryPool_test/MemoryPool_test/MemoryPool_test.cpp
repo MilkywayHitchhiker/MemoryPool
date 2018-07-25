@@ -29,10 +29,21 @@ struct st_TEST_DATA
 {
 	volatile LONG64	lData;
 	volatile LONG64	lCount;
+
+	st_TEST_DATA(void)
+	{
+		lData = 0;
+		lCount = 0;
+	}
+	~st_TEST_DATA (void)
+	{
+		lData = 0;
+		lCount = 0;
+	}
 };
 
 #define dfTHREAD_ALLOC 10000
-#define dfTHREAD_MAX 4
+#define dfTHREAD_MAX 3
 #define dfTESTLOOP_MAX 100
 
 CMemoryPool<st_TEST_DATA> *g_Mempool;
@@ -173,104 +184,167 @@ unsigned int __stdcall MemoryPoolThread (void *pParam)
 	*/
 	for ( int Cnt = 0; Cnt < dfTESTLOOP_MAX; Cnt++ )
 	{
+		
+
+
+
+		Sleep (5);
 
 		//Malloc 속도 테스트
-		PROFILE_BEGIN (L"Malloc Alloc");
 		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
 		{
+
+			PROFILE_BEGIN (L"Malloc Alloc");
 			pDataArray[iCnt] = ( st_TEST_DATA * )malloc (sizeof (st_TEST_DATA));
+
+			PROFILE_END (L"Malloc Alloc");
 		}
-		PROFILE_END (L"Malloc Alloc");
+		Sleep (5);
 
-
-		PROFILE_BEGIN (L"Malloc Free");
 		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
 		{
+
+			PROFILE_BEGIN (L"Malloc Free");
 			free (pDataArray[iCnt]);
+
+			PROFILE_END (L"Malloc Free");
 		}
 
-		PROFILE_END (L"Malloc Free");
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 		//New 속도 테스트
+		Sleep (5);
 
-		PROFILE_BEGIN (L"New Alloc");
 		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
 		{
+			PROFILE_BEGIN (L"New Alloc");
 			pDataArray[iCnt] = new st_TEST_DATA;
-		}			
-		PROFILE_END (L"New Alloc");
 
-		PROFILE_BEGIN (L"New Free");
+			PROFILE_END (L"New Alloc");
+		}			
+
+		Sleep (5);
+
 		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
 		{
+			PROFILE_BEGIN (L"New Free");
 
 			delete pDataArray[iCnt];
+			PROFILE_END (L"New Free");
 
 		}
-		PROFILE_END (L"New Free");
 
+
+
+
+
+
+
+
+
+
+		Sleep (5);
 
 
 		//LOCK버전 메모리풀 속도 테스트
-		PROFILE_BEGIN (L"LOCK Alloc");
 		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
 		{
+			PROFILE_BEGIN (L"LOCK Alloc");
 
 			pDataArray[iCnt] = ( st_TEST_DATA * )g_Mempool->Alloc ();
 
+			PROFILE_END (L"LOCK Alloc");
 		}
-		PROFILE_END (L"LOCK Alloc");
 
 
-		PROFILE_BEGIN (L"LOCK Free");
+
+		Sleep (5);
+
 		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
 		{
+			PROFILE_BEGIN (L"LOCK Free");
 
 			g_Mempool->Free (pDataArray[iCnt]);
 
+			PROFILE_END (L"LOCK Free");
 		}
-		PROFILE_END (L"LOCK Free");
+
+
+
+
+
+
+
+
+		Sleep (5);
 
 
 		//락 프리 버전 메모리풀 테스트
-		PROFILE_END (L"LOCK Free");
 		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
 		{
+			PROFILE_BEGIN (L"LF Alloc");
+
 			pDataArray[iCnt] = ( st_TEST_DATA * )g_Mempool_LF->Alloc ();
 
-		}
-		PROFILE_END (L"LF Alloc");
+			PROFILE_END (L"LF Alloc");
 
-		PROFILE_BEGIN (L"LF Free");
+		}
+
+		Sleep (5);
+
 		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
 		{
+			PROFILE_BEGIN (L"LF Free");
 
 			g_Mempool_LF->Free (pDataArray[iCnt]);
 
+			PROFILE_END (L"LF Free");
 		}
-		PROFILE_END (L"LF Free");
 
 
-		PROFILE_BEGIN (L"TLS Alloc");
+
+
+
+
+
+		Sleep (5);
+
 		//TLS버전 메모리풀 테스트
+
+
 		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
 		{
+			PROFILE_BEGIN (L"TLS Alloc");
 
 			pDataArray[iCnt] = ( st_TEST_DATA * )g_Mempool_TLS->Alloc ();
 
+			PROFILE_END (L"TLS Alloc");
 		}
-		PROFILE_END (L"TLS Alloc");
 
+		Sleep (5);
 
-		PROFILE_BEGIN (L"TLS Free");
 		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
 		{
+			PROFILE_BEGIN (L"TLS Free");
 
 			g_Mempool_TLS->Free (pDataArray[iCnt]);
 
+			PROFILE_END (L"TLS Free");
 		}
-		PROFILE_END (L"TLS Free");
+
+		Sleep (5);
 	}
 
 	return 0;
