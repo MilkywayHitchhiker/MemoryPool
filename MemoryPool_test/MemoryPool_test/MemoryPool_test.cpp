@@ -172,9 +172,6 @@ unsigned int __stdcall MemoryPoolThread (void *pParam)
 	for ( int Cnt = 0; Cnt < dfTESTLOOP_MAX; Cnt++ )
 	{
 		/*
-		
-		Sleep (1);
-
 		//Malloc 속도 테스트
 		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
 		{
@@ -219,7 +216,6 @@ unsigned int __stdcall MemoryPoolThread (void *pParam)
 
 
 
-
 		//LOCK버전 메모리풀 속도 테스트
 
 
@@ -240,7 +236,10 @@ unsigned int __stdcall MemoryPoolThread (void *pParam)
 
 			PROFILE_END (L"LOCK Free");
 		}
-		*/
+
+
+
+
 		//TLS버전 메모리풀 테스트
 
 		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
@@ -262,9 +261,9 @@ unsigned int __stdcall MemoryPoolThread (void *pParam)
 			PROFILE_END (L"TLS Free");
 		}
 
+		*/
 
 
-		/*
 
 		//락 프리 버전 메모리풀 테스트
 
@@ -289,8 +288,7 @@ unsigned int __stdcall MemoryPoolThread (void *pParam)
 			PROFILE_END (L"LF Free");
 		}
 
-		wprintf (L"Loop = %d Count \n", Cnt);
-		*/
+
 	}
 
 	return 0;
