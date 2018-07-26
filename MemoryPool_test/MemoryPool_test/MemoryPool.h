@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------
 
-	MemoryPool_Ver1.0
+	MemoryPool_Ver1.1
 
 	메모리 풀 클래스.
 	특정 데이타를 일정량 할당 후 나눠쓴다.
@@ -540,7 +540,7 @@ private:
 			_pMain_Manager = pManager;
 
 
-			for ( int Cnt = TLS_basicChunkSize; Cnt > 0; Cnt-- )
+			for ( int Cnt = TLS_basicChunkSize - 1; Cnt >= 0; Cnt-- )
 			{
 				_pArray[Cnt].pChunk_Main = this;
 				_pArray[Cnt].Safe = SafeLane;
