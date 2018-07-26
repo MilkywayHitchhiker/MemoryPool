@@ -43,8 +43,8 @@ struct st_TEST_DATA
 };
 
 #define dfTHREAD_ALLOC 10000
-#define dfTHREAD_MAX 3
-#define dfTESTLOOP_MAX 100
+#define dfTHREAD_MAX 1
+#define dfTESTLOOP_MAX 10000
 
 CMemoryPool<st_TEST_DATA> *g_Mempool;
 CMemoryPool_LF<st_TEST_DATA> *g_Mempool_LF;
@@ -52,9 +52,6 @@ CMemoryPool_TLS<st_TEST_DATA> *g_Mempool_TLS;
 
 LONG64 lAllocTPS = 0;
 LONG64 lFreeTPS = 0;
-
-
-//=======================
 
 int main()
 {
@@ -64,11 +61,7 @@ int main()
 
 	HANDLE hThread[dfTHREAD_MAX];
 	DWORD dwThreadID;
-
-	int lAllocCount;
-	int lFreeCount;
-	int IFullCount;
-
+	int Cnt=1;
 	
 	for ( int iCnt = 0; iCnt < dfTHREAD_MAX; iCnt++ )
 	{
@@ -77,27 +70,20 @@ int main()
 	/*
 	while ( 1 )
 	{
-		lAllocCount = g_Mempool->GetAllocCount();
-		lFreeCount = g_Mempool->GetFreeCount();
-		IFullCount = g_Mempool->GetFullCount ();
-
-		wprintf (L"----------------------------------------------------\n");
-		wprintf (L"Alloc TPS		: %lld\n", lAllocTPS);
-		wprintf (L"Free TPS		: %lld\n", lFreeTPS);
-		wprintf (L"Memory Pool Alloc	: %d\n", lAllocCount);
-		wprintf (L"Memory Pool Free	: %d\n", lFreeCount);
-		wprintf (L"Memory Pool Full	: %d\n", IFullCount);
-		wprintf (L"----------------------------------------------------\n\n");
-
-		lAllocTPS = 0;
-		lFreeTPS = 0;
-
 		Sleep (999);
+
+		for ( int ForCnt = 0; ForCnt < Cnt; ForCnt++ )
+		{
+			wprintf (L"-");
+		}
+		wprintf (L"\n");
+		Cnt++;
 	}
 	*/
-	WaitForMultipleObjects (dfTHREAD_MAX, hThread, TRUE, INFINITE);
 
-	PROFILE_KEYPROC;
+	WaitForMultipleObjects (dfTHREAD_MAX, hThread, TRUE, INFINITE);
+	PROFILE_PRINT;
+
 	return 0;
 }
 
@@ -182,13 +168,12 @@ unsigned int __stdcall MemoryPoolThread (void *pParam)
 
 	}
 	*/
+
 	for ( int Cnt = 0; Cnt < dfTESTLOOP_MAX; Cnt++ )
 	{
+		/*
 		
-
-
-
-		Sleep (5);
+		Sleep (1);
 
 		//Malloc 속도 테스트
 		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
@@ -199,7 +184,6 @@ unsigned int __stdcall MemoryPoolThread (void *pParam)
 
 			PROFILE_END (L"Malloc Alloc");
 		}
-		Sleep (5);
 
 		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
 		{
@@ -213,19 +197,7 @@ unsigned int __stdcall MemoryPoolThread (void *pParam)
 
 
 
-
-
-
-
-
-
-
-
-
-
-
 		//New 속도 테스트
-		Sleep (5);
 
 		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
 		{
@@ -233,9 +205,8 @@ unsigned int __stdcall MemoryPoolThread (void *pParam)
 			pDataArray[iCnt] = new st_TEST_DATA;
 
 			PROFILE_END (L"New Alloc");
-		}			
+		}
 
-		Sleep (5);
 
 		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
 		{
@@ -249,16 +220,9 @@ unsigned int __stdcall MemoryPoolThread (void *pParam)
 
 
 
-
-
-
-
-
-
-		Sleep (5);
-
-
 		//LOCK버전 메모리풀 속도 테스트
+
+
 		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
 		{
 			PROFILE_BEGIN (L"LOCK Alloc");
@@ -268,10 +232,6 @@ unsigned int __stdcall MemoryPoolThread (void *pParam)
 			PROFILE_END (L"LOCK Alloc");
 		}
 
-
-
-		Sleep (5);
-
 		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
 		{
 			PROFILE_BEGIN (L"LOCK Free");
@@ -280,49 +240,8 @@ unsigned int __stdcall MemoryPoolThread (void *pParam)
 
 			PROFILE_END (L"LOCK Free");
 		}
-
-
-
-
-
-
-
-
-		Sleep (5);
-
-
-		//락 프리 버전 메모리풀 테스트
-		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
-		{
-			PROFILE_BEGIN (L"LF Alloc");
-
-			pDataArray[iCnt] = ( st_TEST_DATA * )g_Mempool_LF->Alloc ();
-
-			PROFILE_END (L"LF Alloc");
-
-		}
-
-		Sleep (5);
-
-		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
-		{
-			PROFILE_BEGIN (L"LF Free");
-
-			g_Mempool_LF->Free (pDataArray[iCnt]);
-
-			PROFILE_END (L"LF Free");
-		}
-
-
-
-
-
-
-
-		Sleep (5);
-
+		*/
 		//TLS버전 메모리풀 테스트
-
 
 		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
 		{
@@ -333,7 +252,6 @@ unsigned int __stdcall MemoryPoolThread (void *pParam)
 			PROFILE_END (L"TLS Alloc");
 		}
 
-		Sleep (5);
 
 		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
 		{
@@ -344,7 +262,35 @@ unsigned int __stdcall MemoryPoolThread (void *pParam)
 			PROFILE_END (L"TLS Free");
 		}
 
-		Sleep (5);
+
+
+		/*
+
+		//락 프리 버전 메모리풀 테스트
+
+
+		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
+		{
+			PROFILE_BEGIN (L"LF Alloc");
+
+			pDataArray[iCnt] = ( st_TEST_DATA * )g_Mempool_LF->Alloc ();
+
+			PROFILE_END (L"LF Alloc");
+
+		}
+
+
+		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
+		{
+			PROFILE_BEGIN (L"LF Free");
+
+			g_Mempool_LF->Free (pDataArray[iCnt]);
+
+			PROFILE_END (L"LF Free");
+		}
+
+		wprintf (L"Loop = %d Count \n", Cnt);
+		*/
 	}
 
 	return 0;

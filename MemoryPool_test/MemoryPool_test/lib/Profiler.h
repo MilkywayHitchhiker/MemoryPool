@@ -73,7 +73,7 @@ public:
 void Profile_Begin (WCHAR *name);
 void Profile_End (WCHAR *name);
 void PROFILE_KeyProc (void);
-
+void PROFILE_Print (void);
 
 //¼±¾ðºÎ
 #define PROFILE_CHECK
@@ -82,10 +82,11 @@ void PROFILE_KeyProc (void);
 #define PROFILE_BEGIN(X)	Profile_Begin(X)
 #define PROFILE_END(X)		Profile_End(X)
 #define PROFILE_KEYPROC		PROFILE_KeyProc()
-
+#define PROFILE_PRINT		PROFILE_Print()
 #else
 #define PROFILE_BEGIN(X)
 #define PROFILE_END(X)
 #define PROFILE_KEYPROC
+#define PROFILE_PRINT	
 
 #endif

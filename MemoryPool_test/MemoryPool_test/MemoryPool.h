@@ -513,7 +513,7 @@ private:
 	private :
 
 
-		st_BLOCK_NODE *_pArray;
+		st_BLOCK_NODE _pArray[TLS_basicChunkSize];
 		CMemoryPool_TLS<DATA> *_pMain_Manager;
 
 		int FullCnt;
@@ -531,25 +531,16 @@ private:
 
 		}
 
-		bool ChunkSetting (int iBlockNum, CMemoryPool_TLS<DATA> *pManager)
+		bool ChunkSetting (CMemoryPool_TLS<DATA> *pManager)
 		{
 			_Top = 0;
 			FreeCnt = 0;
-			if ( iBlockNum < 0 )
-			{
-				CCrashDump::Crash ();
-			}
-			else if ( iBlockNum == 0 )
-			{
-				iBlockNum = TLS_basicChunkSize;
-			}
 
-			FullCnt = iBlockNum;
+			FullCnt = TLS_basicChunkSize;
 			_pMain_Manager = pManager;
-			_pArray = ( st_BLOCK_NODE * )malloc (sizeof (st_BLOCK_NODE) *iBlockNum);
 
 
-			for ( int Cnt = 0; Cnt < iBlockNum; Cnt++ )
+			for ( int Cnt = TLS_basicChunkSize; Cnt > 0; Cnt-- )
 			{
 				_pArray[Cnt].pChunk_Main = this;
 				_pArray[Cnt].Safe = SafeLane;
@@ -607,7 +598,6 @@ private:
 
 				pMain_Manager->Chunk_Free ();
 
-				free (_pArray);
 				free (this);
 			}
 
@@ -644,6 +634,7 @@ public:
 	}
 	~CMemoryPool_TLS ()
 	{
+		TlsFree (TlsNum);
 		return;
 	}
 
@@ -655,7 +646,9 @@ public:
 	========================================================================*/
 	DATA *Alloc (bool bPlacemenenew = true)
 	{
-		Chunk<DATA> *pChunk = (Chunk<DATA>  * )TlsGetValue (TlsNum);
+		int itls = TlsNum;
+
+		Chunk<DATA> *pChunk = (Chunk<DATA>  * )TlsGetValue (itls);
 
 		//해당 스레드에서 최초 실행될때. 초기화 작업.
 		if ( pChunk == NULL )
@@ -695,12 +688,15 @@ public:
 	========================================================================*/
 	Chunk<DATA> *Chunk_Alloc ()
 	{
-		Chunk<DATA> *pChunk = (Chunk<DATA>  *)TlsGetValue (TlsNum);
+		int itls = TlsNum;
+		int ChunkSize = Chunk_in_BlockCnt;
+
+		Chunk<DATA> *pChunk = (Chunk<DATA>  *)TlsGetValue (itls);
 
 		pChunk = (Chunk<DATA> *)malloc (sizeof (Chunk<DATA>));
-		pChunk->ChunkSetting (Chunk_in_BlockCnt, this);
+		pChunk->ChunkSetting (this);
 
-		TlsSetValue (TlsNum, pChunk);
+		TlsSetValue (itls, pChunk);
 
 		InterlockedIncrement (( volatile long * )&m_iBlockCount);
 

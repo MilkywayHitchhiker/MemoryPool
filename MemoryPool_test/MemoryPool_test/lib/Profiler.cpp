@@ -237,18 +237,17 @@ void Profile_End (WCHAR *name)
 
 void PROFILE_KeyProc (void)
 {
-	Profile.Print_Profile ();
-	/*
-	//p
-	if ( GetAsyncKeyState (0x50) & 0x8001 )
-	{
-		Profile.Print_Profile ();
-	}
+
 	//o
-	if ( GetAsyncKeyState (0x4f) & 0x8001 )
+//	if ( GetAsyncKeyState (0x4f) & 0x8001 )
 	{
 		Profile.ClearProfile ();
 	}
-	*/
 	return;
+}
+
+
+void PROFILE_Print (void)
+{
+	Profile.Print_Profile ();
 }
