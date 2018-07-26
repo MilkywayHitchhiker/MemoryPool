@@ -19,5 +19,4 @@ ThreadID      l Name              l Average                l MinTime            
  2696         l TLS Alloc         l 104.1278            μs l 0.0000              μs l 111072.2376         μs l 100000000  l
  2696         l TLS Free          l 189.0999            μs l 0.0000              μs l 35850.4052          μs l 100000000  l
  
- 
  test 스레드에서 같은 코드로 Alloc과 Free하는 부분만 바꿔가면서 1억번씩 테스트 하였습니다.
