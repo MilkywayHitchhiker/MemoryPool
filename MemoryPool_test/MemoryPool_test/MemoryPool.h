@@ -22,7 +22,7 @@
 #include <Windows.h>
 #include <new.h>
 
-#define TLS_basicChunkSize 10000
+#define TLS_basicChunkSize 204800
 
 
 
@@ -492,6 +492,8 @@ private:
 
 };
 
+
+__declspec (thread) static void *TLSThread = NULL;
 template <class DATA>
 class CMemoryPool_TLS
 {
@@ -507,7 +509,7 @@ private:
 		struct st_BLOCK_NODE
 		{
 			DATA BLOCK;
-			INT64 Safe;
+			INT64 Safe = SafeLane;
 			Chunk<DATA> *pChunk_Main;
 		};
 	private :
@@ -536,14 +538,13 @@ private:
 			_Top = 0;
 			FreeCnt = 0;
 
-			FullCnt = TLS_basicChunkSize;
+//			FullCnt = TLS_basicChunkSize;
 			_pMain_Manager = pManager;
-
+			Chunk<DATA> *pthis = this;
 
 			for ( int Cnt = TLS_basicChunkSize - 1; Cnt >= 0; Cnt-- )
 			{
-				_pArray[Cnt].pChunk_Main = this;
-				_pArray[Cnt].Safe = SafeLane;
+				_pArray[Cnt].pChunk_Main = pthis;
 			}
 			return true;
 		}
@@ -556,8 +557,6 @@ private:
 		//////////////////////////////////////////////////////
 		DATA	*Alloc (bool bPlacementNew = true)
 		{
-			CMemoryPool_TLS<DATA> *pMain_Manager = _pMain_Manager;
-			int iFullCount = FullCnt;
 			int iBlockCount = ++_Top;
 
 		//	st_BLOCK_NODE *stpBlock = &_pArray[iBlockCount - 1];
@@ -570,10 +569,10 @@ private:
 			}
 
 
-			if ( iBlockCount == iFullCount )
+			if ( iBlockCount == TLS_basicChunkSize )
 			{
 				//메모리풀에 존재하는 청크 블록 지우고 새로운 블록으로 셋팅.
-				pMain_Manager->Chunk_Alloc ();
+				_pMain_Manager->Chunk_Alloc ();
 			}
 
 			return pBLOCK;
@@ -582,8 +581,6 @@ private:
 
 		bool Free (DATA *pData)
 		{
-			CMemoryPool_TLS<DATA> *pMain_Manager = _pMain_Manager;
-			int iFullCount = FullCnt;
 			st_BLOCK_NODE *stpBlock = ( st_BLOCK_NODE * )pData;
 
 			if ( stpBlock->Safe != SafeLane )
@@ -593,10 +590,10 @@ private:
 
 			int Cnt = InterlockedIncrement (( volatile long * )&FreeCnt);
 
-			if ( Cnt == iFullCount )
+			if ( Cnt == TLS_basicChunkSize )
 			{
 
-				pMain_Manager->Chunk_Free ();
+				_pMain_Manager->Chunk_Free ();
 
 				free (this);
 			}
@@ -608,7 +605,6 @@ private:
 
 
 	int Chunk_in_BlockCnt;
-	DWORD TlsNum;
 public:
 	/*========================================================================
 	// 생성자
@@ -621,20 +617,14 @@ public:
 		}
 
 		Chunk_in_BlockCnt = iBlockNum;
-		TlsNum = TlsAlloc ();
 
 		m_iBlockCount = 0;
 		m_iAllocCount = 0;
-		//TLS가 생성이 불가한 상태이므로 자기자신을 파괴하고 종료.
-		if ( TlsNum == TLS_OUT_OF_INDEXES )
-		{
-			CCrashDump::Crash ();
-			return;//Dump
-		}
+
+
 	}
 	~CMemoryPool_TLS ()
 	{
-		TlsFree (TlsNum);
 		return;
 	}
 
@@ -646,9 +636,8 @@ public:
 	========================================================================*/
 	DATA *Alloc (bool bPlacemenenew = true)
 	{
-		int itls = TlsNum;
 
-		Chunk<DATA> *pChunk = (Chunk<DATA>  * )TlsGetValue (itls);
+		Chunk<DATA> *pChunk = (Chunk<DATA>  * )TLSThread;
 
 		//해당 스레드에서 최초 실행될때. 초기화 작업.
 		if ( pChunk == NULL )
@@ -688,15 +677,12 @@ public:
 	========================================================================*/
 	Chunk<DATA> *Chunk_Alloc ()
 	{
-		int itls = TlsNum;
 		int ChunkSize = Chunk_in_BlockCnt;
+		
+		TLSThread = (Chunk<DATA> *)malloc (sizeof (Chunk<DATA>));
 
-		Chunk<DATA> *pChunk = (Chunk<DATA>  *)TlsGetValue (itls);
-
-		pChunk = (Chunk<DATA> *)malloc (sizeof (Chunk<DATA>));
+		Chunk<DATA> *pChunk = (Chunk<DATA>  *)TLSThread;
 		pChunk->ChunkSetting (this);
-
-		TlsSetValue (itls, pChunk);
 
 		InterlockedIncrement (( volatile long * )&m_iBlockCount);
 
@@ -753,6 +739,12 @@ private:
 	int m_iBlockCount;
 	int m_iAllocCount;
 };
+
+
+
+
+
+
 
 
 #endif

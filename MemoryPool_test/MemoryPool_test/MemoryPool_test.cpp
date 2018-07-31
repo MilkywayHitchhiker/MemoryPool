@@ -43,7 +43,7 @@ struct st_TEST_DATA
 };
 
 #define dfTHREAD_ALLOC 10000
-#define dfTHREAD_MAX 1
+#define dfTHREAD_MAX 3
 #define dfTESTLOOP_MAX 10000
 
 CMemoryPool<st_TEST_DATA> *g_Mempool;
@@ -171,7 +171,7 @@ unsigned int __stdcall MemoryPoolThread (void *pParam)
 
 	for ( int Cnt = 0; Cnt < dfTESTLOOP_MAX; Cnt++ )
 	{
-		/*
+		
 		//Malloc 속도 테스트
 		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
 		{
@@ -236,7 +236,7 @@ unsigned int __stdcall MemoryPoolThread (void *pParam)
 
 			PROFILE_END (L"LOCK Free");
 		}
-
+		
 
 
 
@@ -261,9 +261,9 @@ unsigned int __stdcall MemoryPoolThread (void *pParam)
 			PROFILE_END (L"TLS Free");
 		}
 
-		*/
 
 
+		/*
 
 		//락 프리 버전 메모리풀 테스트
 
@@ -287,6 +287,7 @@ unsigned int __stdcall MemoryPoolThread (void *pParam)
 
 			PROFILE_END (L"LF Free");
 		}
+		*/
 
 
 	}
