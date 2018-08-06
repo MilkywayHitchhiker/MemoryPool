@@ -3,7 +3,8 @@
 
 #include "stdafx.h"
 #include "lib\Library.h"
-#include"MemoryPool.h"
+#include "MemoryPool.h"
+#include "LockFreeStack.h"
 
 
 class abc
@@ -27,37 +28,28 @@ unsigned int __stdcall MemoryPoolThread (void *pParam);
 //=======================
 struct st_TEST_DATA
 {
-	volatile LONG64	lData;
-	volatile LONG64	lCount;
+	unsigned int	lData;
+	unsigned int	lCount;
 
 	st_TEST_DATA(void)
 	{
-		lData = 0;
-		lCount = 0;
-	}
-	~st_TEST_DATA (void)
-	{
-		lData = 0;
+		lData = 0x0000000055555555;
 		lCount = 0;
 	}
 };
 
 #define dfTHREAD_ALLOC 10000
-#define dfTHREAD_MAX 1
+#define dfTHREAD_MAX 20
 #define dfTESTLOOP_MAX 10000
 
-CMemoryPool<st_TEST_DATA> *g_Mempool;
-CMemoryPool_LF<st_TEST_DATA> *g_Mempool_LF;
-CMemoryPool_TLS<st_TEST_DATA> *g_Mempool_TLS;
+CStack_LF<st_TEST_DATA *> LF_Stack;
 
-LONG64 lAllocTPS = 0;
-LONG64 lFreeTPS = 0;
+LONG64 LOOPTPS = 0;
 
 int main()
 {
-	g_Mempool = new CMemoryPool<st_TEST_DATA> (0);
-	g_Mempool_LF = new CMemoryPool_LF<st_TEST_DATA> (0);
-	g_Mempool_TLS = new CMemoryPool_TLS<st_TEST_DATA> (0);
+	LOG_DIRECTORY (L"LOG");
+	LOG_LEVEL (LOG_DEBUG, true);
 
 	HANDLE hThread[dfTHREAD_MAX];
 	DWORD dwThreadID;
@@ -67,22 +59,20 @@ int main()
 	{
 		hThread[iCnt] = ( HANDLE )_beginthreadex (NULL, 0, MemoryPoolThread, ( LPVOID )0, 0, ( unsigned int * )&dwThreadID);
 	}
-	/*
+
+
 	while ( 1 )
 	{
 		Sleep (999);
 
-		for ( int ForCnt = 0; ForCnt < Cnt; ForCnt++ )
-		{
-			wprintf (L"-");
-		}
+		wprintf (L"LoopTPS = %lld", LOOPTPS);
+		
 		wprintf (L"\n");
-		Cnt++;
+
+		LOOPTPS = 0;
 	}
-	*/
 
 	WaitForMultipleObjects (dfTHREAD_MAX, hThread, TRUE, INFINITE);
-	PROFILE_PRINT;
 
 	return 0;
 }
@@ -113,61 +103,95 @@ unsigned int __stdcall MemoryPoolThread (void *pParam)
 	// 10. 뽑은 수 만큼 스택에 다시 넣음
 	//  3번 으로 반복.
 	/*------------------------------------------------------------------*/
-	/*
+
+
+	//락 프리 버전 메모리풀 테스트
+
+
+	for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
+	{
+
+		pDataArray[iCnt] = new st_TEST_DATA;
+		LF_Stack.Push (pDataArray[iCnt]);
+	}
+
+
 	while ( 1 )
 	{
 		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
 		{
-			pDataArray[iCnt] = ( st_TEST_DATA * )g_Mempool->Alloc ();
-			pDataArray[iCnt]->lData = 0x0000000055555555;
-			pDataArray[iCnt]->lCount = 0;
-			InterlockedIncrement64 (( LONG64 * )&lAllocTPS);
-		}
-
-		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
-		{
-			if ( pDataArray[iCnt]->lData != 0x0000000055555555 || pDataArray[iCnt]->lCount != 0 )
-				CCrashDump::Crash ();
-		}
-
-		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
-		{
-			InterlockedIncrement64 (&pDataArray[iCnt]->lCount);
-			InterlockedIncrement64 (&pDataArray[iCnt]->lData);
+			LF_Stack.Pop (&pDataArray[iCnt]);
 		}
 
 		Sleep (1);
 
 		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
 		{
-			if ( pDataArray[iCnt]->lData != 0x0000000055555556 || pDataArray[iCnt]->lCount != 1 )
+
+			if ( pDataArray[iCnt]->lData != 0x0000000055555555 )
+			{
+				LOG_LOG (L"LFStack",LOG_WARNING,L"Pop Data Error %d\n", pDataArray[iCnt]->lData);
 				CCrashDump::Crash ();
-		}
+			}
 
-
-		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
-		{
-			InterlockedDecrement64 (&pDataArray[iCnt]->lCount);
-			InterlockedDecrement64 (&pDataArray[iCnt]->lData);
-		}
-
-		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
-		{
-			if ( pDataArray[iCnt]->lData != 0x0000000055555555 || pDataArray[iCnt]->lCount != 0 )
+			if ( pDataArray[iCnt]->lCount != 0 )
+			{
+				LOG_LOG (L"LFStack", LOG_WARNING, L"Pop Count Error %d\n", pDataArray[iCnt]->lCount);
 				CCrashDump::Crash ();
+			}
+		}
+
+
+		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
+		{
+			InterlockedIncrement(&pDataArray[iCnt]->lCount);
+			InterlockedIncrement (&pDataArray[iCnt]->lData);
+		}
+
+		Sleep (1);
+
+		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
+		{
+
+
+			if ( pDataArray[iCnt]->lData != 0x0000000055555556 )
+			{
+				LOG_LOG (L"LFStack", LOG_WARNING, L"Add Data Error %d\n", pDataArray[iCnt]->lData);
+				CCrashDump::Crash ();
+			}
+
+			if ( pDataArray[iCnt]->lCount != 1 )
+			{
+				LOG_LOG (L"LFStack", LOG_WARNING, L"Add Count Error %d\n", pDataArray[iCnt]->lCount);
+				CCrashDump::Crash ();
+			}
 		}
 
 		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
 		{
-			g_Mempool->Free (pDataArray[iCnt]);
-			InterlockedIncrement64 (( LONG64 * )&lFreeTPS);
+			InterlockedDecrement (&pDataArray[iCnt]->lCount);
+			InterlockedDecrement (&pDataArray[iCnt]->lData);
 		}
-		Sleep (2);
 
+
+
+		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
+		{
+			LF_Stack.Push (pDataArray[iCnt]);
+		}
+
+		Sleep (1);
+
+		InterlockedIncrement64 ((volatile LONG64 *)&LOOPTPS);
 
 
 	}
-	*/
+
+	for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
+	{
+		LF_Stack.Pop (&pDataArray[iCnt]);
+		delete pDataArray[iCnt];
+	}
 
 	for ( int Cnt = 0; Cnt < dfTESTLOOP_MAX; Cnt++ )
 	{
@@ -261,7 +285,7 @@ unsigned int __stdcall MemoryPoolThread (void *pParam)
 			PROFILE_END (L"TLS Free");
 		}
 
-		*/
+
 
 
 
@@ -278,6 +302,27 @@ unsigned int __stdcall MemoryPoolThread (void *pParam)
 
 		}
 
+		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
+		{
+			pDataArray[iCnt]->lCount += 1;
+			pDataArray[iCnt]->lData += 10;
+		}
+
+
+		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
+		{
+			if ( pDataArray[iCnt]->lCount != 1 )
+			{
+				CCrashDump::Crash ();
+			}
+
+			if ( pDataArray[iCnt]->lData != 10 )
+			{
+				CCrashDump::Crash ();
+			}
+		}
+
+		Sleep (10);
 
 		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
 		{
@@ -288,7 +333,7 @@ unsigned int __stdcall MemoryPoolThread (void *pParam)
 			PROFILE_END (L"LF Free");
 		}
 
-
+		*/
 	}
 
 	return 0;

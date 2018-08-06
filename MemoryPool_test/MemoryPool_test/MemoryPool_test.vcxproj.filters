@@ -42,6 +42,9 @@
     <ClInclude Include="lib\System_Log.h">
       <Filter>소스 파일\lib</Filter>
     </ClInclude>
+    <ClInclude Include="LockFreeStack.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">

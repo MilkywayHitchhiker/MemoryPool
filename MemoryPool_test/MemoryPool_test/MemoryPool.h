@@ -271,6 +271,7 @@ private:
 	========================================================================*/
 	struct st_BLOCK_NODE
 	{
+		DATA data;
 		st_BLOCK_NODE ()
 		{
 			stpNextBlock = NULL;
@@ -321,7 +322,6 @@ public:
 		else if ( iBlockNum == 0 )
 		{
 			m_bStoreFlag = true;
-			_pTop->pTopNode = NULL;
 		}
 
 		/*========================================================================
@@ -346,12 +346,15 @@ public:
 
 	virtual	~CMemoryPool_LF ()
 	{
+		st_TOP_NODE *PreTop;
 		st_BLOCK_NODE *pNode;
 
+
+		PreTop = _pTop;
 		for ( int iCnt = 0; iCnt < m_iBlockCount; iCnt++ )
 		{
-			pNode = _pTop->pTopNode;
-			_pTop->pTopNode = _pTop->pTopNode->stpNextBlock;
+			pNode = PreTop->pTopNode;
+			PreTop->pTopNode = PreTop->pTopNode->stpNextBlock;
 			free (pNode);
 		}
 	}
@@ -367,13 +370,13 @@ public:
 		st_BLOCK_NODE *stpBlock;
 		st_TOP_NODE pPreTopNode;
 		int iBlockCount = m_iBlockCount;
-		InterlockedIncrement64 (( LONG64 * )&m_iAllocCount);
+		int iAllocCnt = InterlockedIncrement64 (( LONG64 * )&m_iAllocCount);
 
-		if ( iBlockCount < m_iAllocCount )
+		if ( iBlockCount < iAllocCnt )
 		{
 			if ( m_bStoreFlag )
 			{
-				stpBlock = ( st_BLOCK_NODE * )malloc (sizeof (DATA) + sizeof (st_BLOCK_NODE));
+				stpBlock = ( st_BLOCK_NODE * )malloc (sizeof (st_BLOCK_NODE));
 				InterlockedIncrement64 (( LONG64 * )&m_iBlockCount);
 			}
 
@@ -390,17 +393,14 @@ public:
 				pPreTopNode.iUniqueNum = _pTop->iUniqueNum;
 				pPreTopNode.pTopNode = _pTop->pTopNode;
 
-			} while ( !InterlockedCompareExchange128 (( volatile LONG64 * )_pTop,
-				iUniqueNum,
-				( LONG64 )_pTop->pTopNode->stpNextBlock,
-				( LONG64 * )&pPreTopNode) );
+			} while ( !InterlockedCompareExchange128 (( volatile LONG64 * )_pTop, iUniqueNum, ( LONG64 )_pTop->pTopNode->stpNextBlock, ( LONG64 * )&pPreTopNode) );
 
 			stpBlock = pPreTopNode.pTopNode;
 		}
 
-		if ( bPlacementNew )	new (( DATA * )(stpBlock + 1)) DATA;
+		if ( bPlacementNew )	new (&stpBlock->data) DATA;
 
-		return ( DATA * )(stpBlock + 1);
+		return &stpBlock->data;
 	}
 
 	/*========================================================================
@@ -414,6 +414,9 @@ public:
 		st_BLOCK_NODE *stpBlock;
 		st_TOP_NODE pPreTopNode;
 
+
+		stpBlock = ( st_BLOCK_NODE * )pData;
+
 		__int64 iUniqueNum = InterlockedIncrement64 (&_iUniqueNum);
 
 		do
@@ -421,7 +424,6 @@ public:
 			pPreTopNode.iUniqueNum = _pTop->iUniqueNum;
 			pPreTopNode.pTopNode = _pTop->pTopNode;
 
-			stpBlock = (( st_BLOCK_NODE * )pData - 1);
 			stpBlock->stpNextBlock = _pTop->pTopNode;
 		} while ( !InterlockedCompareExchange128 (( volatile LONG64 * )_pTop, iUniqueNum, ( LONG64 )stpBlock, ( LONG64 * )&pPreTopNode) );
 
