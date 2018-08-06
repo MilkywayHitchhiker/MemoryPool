@@ -39,7 +39,11 @@ struct st_TEST_DATA
 };
 
 #define dfTHREAD_ALLOC 10000
+<<<<<<< HEAD
 #define dfTHREAD_MAX 20
+=======
+#define dfTHREAD_MAX 3
+>>>>>>> df48f92d2922cc118b6b98ac9fc42fd7db1655c9
 #define dfTESTLOOP_MAX 10000
 
 CStack_LF<st_TEST_DATA *> LF_Stack;
@@ -195,7 +199,7 @@ unsigned int __stdcall MemoryPoolThread (void *pParam)
 
 	for ( int Cnt = 0; Cnt < dfTESTLOOP_MAX; Cnt++ )
 	{
-		/*
+		
 		//Malloc 속도 테스트
 		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
 		{
@@ -260,7 +264,7 @@ unsigned int __stdcall MemoryPoolThread (void *pParam)
 
 			PROFILE_END (L"LOCK Free");
 		}
-
+		
 
 
 
@@ -285,9 +289,13 @@ unsigned int __stdcall MemoryPoolThread (void *pParam)
 			PROFILE_END (L"TLS Free");
 		}
 
+<<<<<<< HEAD
+
+=======
+>>>>>>> df48f92d2922cc118b6b98ac9fc42fd7db1655c9
 
 
-
+		/*
 
 		//락 프리 버전 메모리풀 테스트
 
@@ -332,6 +340,7 @@ unsigned int __stdcall MemoryPoolThread (void *pParam)
 
 			PROFILE_END (L"LF Free");
 		}
+		*/
 
 		*/
 	}
