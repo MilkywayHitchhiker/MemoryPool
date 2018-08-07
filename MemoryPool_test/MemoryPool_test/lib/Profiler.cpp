@@ -72,7 +72,7 @@ bool ProfileStructher::Set_Profile (WCHAR *name, __int64 SetTime)
 bool ProfileStructher::End_Profile (WCHAR *name, __int64 EndTime)
 {
 	int cnt;
-	UINT64 Time;
+	__int64 Time;
 	ProfileThread *p = ( ProfileThread * )pThread;
 
 	for ( cnt = 0; cnt < Max; cnt++ )
@@ -150,15 +150,15 @@ void ProfileStructher::Print_Profile (void)
 	int cnt;
 	FILE *fp;
 	double Average;
-	double i_Average;
+	__int64 i_Average;
 	double MinTime;
 	double MaxTime;
 
 
 	_wfopen_s (&fp,L"Profile.txt",L"w+t,ccs=UNICODE");
 
-	fwprintf_s (fp, L"%-13s l %-17s l %-20s   l %-20s   l %-20s   l %-8s l\n", L"ThreadID", L"Name", L"Average", L"MinTime", L"MaxTime", L"TotalCaLL");
-	fwprintf_s (fp, L"ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ\n");
+	fwprintf_s (fp, L"%-13s l %-25s l %18s   l %18s   l %18s   l %20s l\n", L"ThreadID", L"Name", L"Average", L"MinTime", L"MaxTime", L"TotalCaLL");
+	fwprintf_s (fp, L"ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ\n");
 
 	for ( int TCnt = 0; TCnt < ThreadMax; TCnt++ )
 	{
@@ -174,15 +174,15 @@ void ProfileStructher::Print_Profile (void)
 				Thread[TCnt].profile_Array[cnt].TotalTime += Thread[TCnt].profile_Array[cnt].Min_Time[1];
 				Thread[TCnt].profile_Array[cnt].TotalTime += Thread[TCnt].profile_Array[cnt].Max_Time[1];
 
-				i_Average = ( double )Thread[TCnt].profile_Array[cnt].TotalTime / Thread[TCnt].profile_Array[cnt].CallCNT;
-				Average = i_Average / NanoSecond;
+				i_Average = Thread[TCnt].profile_Array[cnt].TotalTime / Thread[TCnt].profile_Array[cnt].CallCNT;
+				Average = ( double )i_Average / NanoSecond;
 				MinTime = ( double )Thread[TCnt].profile_Array[cnt].Min_Time[1] / NanoSecond;
 				MaxTime = ( double )Thread[TCnt].profile_Array[cnt].Max_Time[1] / NanoSecond;
 
-				fwprintf_s (fp, L" %-12d l %-17ls l %-20.4fµs l %-20.4fµs l %-20.4fµs l %8lld  l\n", Thread[TCnt].ThreadID,Thread[TCnt].profile_Array[cnt].Name, Average, MinTime, MaxTime, Thread[TCnt].profile_Array[cnt].CallCNT);
+				fwprintf_s (fp, L" %-13d l %-24ls l %-18.2fµs l %-18.2fµs l %-18.2fµs l %-19lld  l\n", Thread[TCnt].ThreadID,Thread[TCnt].profile_Array[cnt].Name, Average, MinTime, MaxTime, Thread[TCnt].profile_Array[cnt].CallCNT);
+			//	fwprintf_s (fp, L" %-13d l %-24ls l %-18.2fms l %-18.2fms l %-18.2fms l %-20lld  l\n", Thread[TCnt].ThreadID, Thread[TCnt].profile_Array[cnt].Name, Average, MinTime, MaxTime, Thread[TCnt].profile_Array[cnt].CallCNT);
 			}
 		}
-		fwprintf_s (fp, L"\n\n");
 	}
 
 	fclose (fp);
@@ -212,14 +212,17 @@ void ProfileStructher::ClearProfile (void)		//모든 프로파일을 초기화 �
 }
 
 ProfileStructher Profile;
-
+ 
 void Profile_Begin (WCHAR *name)
 {
 	LARGE_INTEGER StartTime;
 	QueryPerformanceCounter (&StartTime);
 	if ( false == Profile.Set_Profile (name, StartTime.QuadPart) )
 	{
-		//throw false;
+		/*
+		int *p = nullptr;
+		*p = 0;
+		*/
 	}
 	return;
 }
@@ -230,24 +233,42 @@ void Profile_End (WCHAR *name)
 	QueryPerformanceCounter (&EndTime);
 	if ( false == Profile.End_Profile (name, EndTime.QuadPart) )
 	{
-	//	throw false;
+		/*
+		int *p = nullptr;
+		*p = 0;
+		*/
 	}
 	return;
 }
 
 void PROFILE_KeyProc (void)
 {
+	INT64 Time;
+	/*
+	//p
+	if ( GetAsyncKeyState (0x50) & 0x8001 )
+	{
+		Profile.Print_Profile ();
+	}
+
+	*/
+	
+	//5분 에 한번씩 저장.
+	Time = GetTickCount64 ();
+
+	if ( Time - Profile._CStartTime > 60000 )
+	{
+		Profile._CStartTime = Time;
+		Profile.Print_Profile ();
+	}
 
 	//o
-//	if ( GetAsyncKeyState (0x4f) & 0x8001 )
+	if ( GetAsyncKeyState (0x4f) & 0x8001 )
 	{
+		Profile._CStartTime = Time;
 		Profile.ClearProfile ();
 	}
+
+	
 	return;
-}
-
-
-void PROFILE_Print (void)
-{
-	Profile.Print_Profile ();
 }

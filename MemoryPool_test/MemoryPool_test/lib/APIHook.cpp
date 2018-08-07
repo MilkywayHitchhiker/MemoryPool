@@ -1,5 +1,4 @@
 #pragma once
-
 #include "stdafx.h"
 #include <windows.h>
 #include <tchar.h>
@@ -364,6 +363,7 @@ void CAPIHook::FixupNewlyLoadedModule(HMODULE hmod, DWORD dwFlags)
 			} else 
 			{
 #ifdef _DEBUG
+				/*
 			// We should never end up here 
 			char szPathname[MAX_PATH];
 			GetModuleFileName(NULL, szPathname, _countof(szPathname));
@@ -372,6 +372,7 @@ void CAPIHook::FixupNewlyLoadedModule(HMODULE hmod, DWORD dwFlags)
 				"[%4u - %s] impossible to find %S\r\n", 
 				GetCurrentProcessId(), szPathname, p->m_pszCalleeModName);
 			OutputDebugString(sz);
+			*/
 #endif
 			}
 		}
