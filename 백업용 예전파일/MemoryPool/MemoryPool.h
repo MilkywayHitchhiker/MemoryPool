@@ -271,7 +271,10 @@ private:
 	========================================================================*/
 	struct st_BLOCK_NODE
 	{
-		DATA data;
+		st_BLOCK_NODE ()
+		{
+			stpNextBlock = NULL;
+		}
 		st_BLOCK_NODE *stpNextBlock;
 	};
 
@@ -328,13 +331,13 @@ public:
 		{
 			m_bStoreFlag = false;
 
-			pNode = ( st_BLOCK_NODE * )malloc (sizeof (st_BLOCK_NODE));
+			pNode = ( st_BLOCK_NODE * )malloc (sizeof (DATA) + sizeof (st_BLOCK_NODE));
 			_pTop->pTopNode = pNode;
 			pPreNode = pNode;
 
 			for ( int iCnt = 1; iCnt < iBlockNum; iCnt++ )
 			{
-				pNode = ( st_BLOCK_NODE * )malloc (sizeof (st_BLOCK_NODE));
+				pNode = ( st_BLOCK_NODE * )malloc (sizeof (DATA) + sizeof (st_BLOCK_NODE));
 				pPreNode->stpNextBlock = pNode;
 				pPreNode = pNode;
 			}
@@ -363,15 +366,15 @@ public:
 	{
 		st_BLOCK_NODE *stpBlock;
 		st_TOP_NODE pPreTopNode;
-		INT64 iBlockCount = m_iBlockCount;
-		INT64 iAllocCount =  InterlockedIncrement64 ((volatile LONG64 *)&m_iAllocCount);
+		int iBlockCount = m_iBlockCount;
+		InterlockedIncrement64 (( LONG64 * )&m_iAllocCount);
 
-		if ( iBlockCount < iAllocCount )
+		if ( iBlockCount < m_iAllocCount )
 		{
 			if ( m_bStoreFlag )
 			{
-				stpBlock = ( st_BLOCK_NODE * )malloc (sizeof (st_BLOCK_NODE));
-				InterlockedIncrement64 (( volatile LONG64 * )&m_iBlockCount);
+				stpBlock = ( st_BLOCK_NODE * )malloc (sizeof (DATA) + sizeof (st_BLOCK_NODE));
+				InterlockedIncrement64 (( LONG64 * )&m_iBlockCount);
 			}
 
 			else
@@ -380,25 +383,24 @@ public:
 
 		else
 		{
-			INT64 iUniqueNum = InterlockedIncrement64 (( volatile LONG64 * )&_iUniqueNum);
+			__int64 iUniqueNum = InterlockedIncrement64 (&_iUniqueNum);
 
 			do
 			{
 				pPreTopNode.iUniqueNum = _pTop->iUniqueNum;
 				pPreTopNode.pTopNode = _pTop->pTopNode;
 
-			} while ( !InterlockedCompareExchange128 (( volatile LONG64 * )_pTop, iUniqueNum, ( LONG64 )pPreTopNode.pTopNode->stpNextBlock, ( LONG64 * )&pPreTopNode) );
+			} while ( !InterlockedCompareExchange128 (( volatile LONG64 * )_pTop,
+				iUniqueNum,
+				( LONG64 )_pTop->pTopNode->stpNextBlock,
+				( LONG64 * )&pPreTopNode) );
 
 			stpBlock = pPreTopNode.pTopNode;
 		}
 
-		if ( bPlacementNew )
-		{
-			new (&stpBlock->data) DATA;
-		}
+		if ( bPlacementNew )	new (( DATA * )(stpBlock + 1)) DATA;
 
-
-		return &stpBlock->data;
+		return ( DATA * )(stpBlock + 1);
 	}
 
 	/*========================================================================
@@ -412,19 +414,18 @@ public:
 		st_BLOCK_NODE *stpBlock;
 		st_TOP_NODE pPreTopNode;
 
-		stpBlock = (( st_BLOCK_NODE * )pData);
-
-		INT64 iUniqueNum = InterlockedIncrement64 (( volatile LONG64 * )&_iUniqueNum);
+		__int64 iUniqueNum = InterlockedIncrement64 (&_iUniqueNum);
 
 		do
 		{
 			pPreTopNode.iUniqueNum = _pTop->iUniqueNum;
 			pPreTopNode.pTopNode = _pTop->pTopNode;
-	
-			stpBlock->stpNextBlock = pPreTopNode.pTopNode;
+
+			stpBlock = (( st_BLOCK_NODE * )pData - 1);
+			stpBlock->stpNextBlock = _pTop->pTopNode;
 		} while ( !InterlockedCompareExchange128 (( volatile LONG64 * )_pTop, iUniqueNum, ( LONG64 )stpBlock, ( LONG64 * )&pPreTopNode) );
 
-		InterlockedDecrement64 (( volatile LONG64 * )&m_iAllocCount);
+		InterlockedDecrement64 (( LONG64 * )&m_iAllocCount);
 		return true;
 	}
 
@@ -433,9 +434,9 @@ public:
 	// 현재 사용중인 블럭 개수를 얻는다.
 	//
 	// Parameters:	없음.
-	// Return:		(INT64) 사용중인 블럭 개수.
+	// Return:		(int) 사용중인 블럭 개수.
 	========================================================================*/
-	INT64		GetAllocCount (void)
+	int		GetAllocCount (void)
 	{
 		return m_iAllocCount;
 	}
@@ -444,9 +445,9 @@ public:
 	// 메모리풀 블럭 전체 개수를 얻는다.
 	//
 	// Parameters:	없음.
-	// Return:		(INT64) 전체 블럭 개수.
+	// Return:		(int) 전체 블럭 개수.
 	========================================================================*/
-	INT64		GetFullCount (void)
+	int		GetFullCount (void)
 	{
 		return m_iBlockCount;
 	}
@@ -455,9 +456,9 @@ public:
 	// 현재 보관중인 블럭 개수를 얻는다.
 	//
 	// Parameters:	없음.
-	// Return:		(INT64) 보관중인 블럭 개수.
+	// Return:		(int) 보관중인 블럭 개수.
 	========================================================================*/
-	INT64		GetFreeCount (void)
+	int		GetFreeCount (void)
 	{
 		return m_iBlockCount - m_iAllocCount;
 	}
@@ -471,7 +472,7 @@ private:
 	/*========================================================================
 	// 탑의 Unique Number
 	========================================================================*/
-	INT64 _iUniqueNum;
+	__int64 _iUniqueNum;
 
 	/*========================================================================
 	// 메모리 동적 플래그, true면 없으면 동적할당 함
@@ -481,15 +482,264 @@ private:
 	/*========================================================================
 	// 현재 사용중인 블럭 개수
 	========================================================================*/
-	INT64 m_iAllocCount;
+	int m_iAllocCount;
 
 	/*========================================================================
 	// 전체 블럭 개수
 	========================================================================*/
-	INT64 m_iBlockCount;
+	int m_iBlockCount;
 
 
 };
+
+
+__declspec (thread) static void *TLSThread = NULL;
+template <class DATA>
+class CMemoryPool_TLS
+{
+private:
+	/*========================================================================
+	// 청크
+	========================================================================*/
+	template<class DATA>
+	class Chunk
+	{
+	public:
+#define SafeLane 0xff77668888
+		struct st_BLOCK_NODE
+		{
+			DATA BLOCK;
+			INT64 Safe = SafeLane;
+			Chunk<DATA> *pChunk_Main;
+		};
+	private :
+
+
+		st_BLOCK_NODE _pArray[TLS_basicChunkSize];
+		CMemoryPool_TLS<DATA> *_pMain_Manager;
+
+		int FullCnt;
+		int _Top;
+		int FreeCnt;
+	public:
+		////////////////////////////////////////////////////
+		//Chunk 생성자
+		////////////////////////////////////////////////////
+		Chunk ()
+		{
+		}
+		~Chunk ()
+		{
+
+		}
+
+		bool ChunkSetting (CMemoryPool_TLS<DATA> *pManager)
+		{
+			_Top = 0;
+			FreeCnt = 0;
+
+//			FullCnt = TLS_basicChunkSize;
+			_pMain_Manager = pManager;
+			Chunk<DATA> *pthis = this;
+
+			for ( int Cnt = TLS_basicChunkSize - 1; Cnt >= 0; Cnt-- )
+			{
+				_pArray[Cnt].pChunk_Main = pthis;
+			}
+			return true;
+		}
+
+		//////////////////////////////////////////////////////
+		// 블럭 하나를 할당받는다.
+		//
+		// Parameters: PlacementNew여부.
+		// Return:		(DATA *) 데이타 블럭 포인터.
+		//////////////////////////////////////////////////////
+		DATA	*Alloc (bool bPlacementNew = true)
+		{
+			int iBlockCount = ++_Top;
+
+		//	st_BLOCK_NODE *stpBlock = &_pArray[iBlockCount - 1];
+			DATA * pBLOCK = &_pArray[iBlockCount - 1].BLOCK;
+
+
+			if ( bPlacementNew )
+			{
+				new (pBLOCK) DATA;
+			}
+
+
+			if ( iBlockCount == TLS_basicChunkSize )
+			{
+				//메모리풀에 존재하는 청크 블록 지우고 새로운 블록으로 셋팅.
+				_pMain_Manager->Chunk_Alloc ();
+			}
+
+			return pBLOCK;
+
+		}
+
+		bool Free (DATA *pData)
+		{
+			st_BLOCK_NODE *stpBlock = ( st_BLOCK_NODE * )pData;
+
+			if ( stpBlock->Safe != SafeLane )
+			{
+				return false;
+			}
+
+			int Cnt = InterlockedIncrement (( volatile long * )&FreeCnt);
+
+			if ( Cnt == TLS_basicChunkSize )
+			{
+
+				_pMain_Manager->Chunk_Free ();
+
+				free (this);
+			}
+
+			return true;
+
+		}
+	};
+
+
+	int Chunk_in_BlockCnt;
+public:
+	/*========================================================================
+	// 생성자
+	========================================================================*/
+	CMemoryPool_TLS (int iBlockNum)
+	{
+		if ( iBlockNum == 0 )
+		{
+			iBlockNum = TLS_basicChunkSize;
+		}
+
+		Chunk_in_BlockCnt = iBlockNum;
+
+		m_iBlockCount = 0;
+		m_iAllocCount = 0;
+
+
+	}
+	~CMemoryPool_TLS ()
+	{
+		return;
+	}
+
+	/*========================================================================
+	// 블럭 하나를 할당 받는다.
+	//
+	// Parameters:	PlacementNew 여부.
+	// Return:		(DATA *) 블럭 포인터.
+	========================================================================*/
+	DATA *Alloc (bool bPlacemenenew = true)
+	{
+
+		Chunk<DATA> *pChunk = (Chunk<DATA>  * )TLSThread;
+
+		//해당 스레드에서 최초 실행될때. 초기화 작업.
+		if ( pChunk == NULL )
+		{
+			pChunk = Chunk_Alloc ();
+		}
+
+		DATA *pData = pChunk->Alloc ();
+	//	InterlockedIncrement (( volatile long * )&m_iAllocCount);
+
+		return pData;
+
+	}
+
+	/*========================================================================
+	// 사용중이던 블럭을 해제한다.
+	//
+	// Parameters:	(DATA *) 블럭 포인터.
+	// Return:		(BOOL) TRUE, FALSE.
+	========================================================================*/
+	bool Free (DATA *pDATA)
+	{
+		Chunk<DATA>::st_BLOCK_NODE *pNode = (Chunk<DATA>::st_BLOCK_NODE *) pDATA;
+
+		bool chk = pNode->pChunk_Main->Free (pDATA);
+//		InterlockedDecrement (( volatile long * )&m_iAllocCount);
+		return chk;
+	}
+public:
+
+
+	/*========================================================================
+	// Alloc이 다된 Chunk블럭을 교체한다.
+	//
+	// Parameters:	없음
+	// Return:		없음
+	========================================================================*/
+	Chunk<DATA> *Chunk_Alloc ()
+	{
+		int ChunkSize = Chunk_in_BlockCnt;
+		
+		TLSThread = (Chunk<DATA> *)malloc (sizeof (Chunk<DATA>));
+
+		Chunk<DATA> *pChunk = (Chunk<DATA>  *)TLSThread;
+		pChunk->ChunkSetting (this);
+
+		InterlockedIncrement (( volatile long * )&m_iBlockCount);
+
+		return pChunk;
+	}
+	void Chunk_Free (void)
+	{
+		InterlockedDecrement (( volatile long * )&m_iBlockCount);
+		return;
+	}
+
+	/*========================================================================
+	// 현재 사용중인 블럭 개수를 얻는다.
+	//
+	// ! 주의
+	//	TLS의 성능상 한계로 인해 사용되지 않음.
+	//
+	// Parameters:	없음.
+	// Return:		(int) 사용중인 블럭 개수.
+	========================================================================*/
+	int		GetAllocCount (void)
+	{
+	//	return m_iAllocCount;
+		return 0;
+	}
+	/*========================================================================
+	// 메모리풀 블럭 전체 개수를 얻는다.
+	//
+	// Parameters:	없음.
+	// Return:		(int) 전체 블럭 개수.
+	========================================================================*/
+	int		GetFullCount (void)
+	{
+		return m_iBlockCount * Chunk_in_BlockCnt;
+	}
+
+	/*========================================================================
+	// 현재 보관중인 블럭 개수를 얻는다.
+	//
+	// ! 주의
+	//	TLS의 성능상 한계로 인해 사용되지 않음.
+	//
+	// Parameters:	없음.
+	// Return:		(int) 보관중인 블럭 개수.
+	========================================================================*/
+	int		GetFreeCount (void)
+	{
+	//	return m_iBlockCount - m_iAllocCount;
+		return 0;
+	}
+
+private:
+
+	int m_iBlockCount;
+	int m_iAllocCount;
+};
+
 
 
 
