@@ -7,7 +7,7 @@ __declspec (thread) static void *pThread = NULL;
 class ProfileStructher
 {
 #define Max 50		//여기에서만 쓸 용도 이므로 class내부에서 정의해 준다.
-#define ThreadMax 10
+#define ThreadMax 5
 
 private:
 	struct Profile
@@ -16,11 +16,11 @@ private:
 		WCHAR Name[64];
 		
 		bool Beginflag;		//프로파일 시작여부
-		__int64 Start_Time;	//시작시간
-		__int64 TotalTime;	//모든 시간의 합계
-		__int64 Min_Time[2];	//0번은 최소 걸린시간. 너무 작은값. 1번이 그 다음값
-		__int64 Max_Time[2];	//0번은 최대 걸린 시간. 너무 큰 값. 1번은 그 다음 큰값.
-		unsigned __int64 CallCNT;	//call한 횟수.
+		UINT64 Start_Time;	//시작시간
+		UINT64 TotalTime;	//모든 시간의 합계
+		UINT64 Min_Time[2];	//0번은 최소 걸린시간. 너무 작은값. 1번이 그 다음값
+		UINT64 Max_Time[2];	//0번은 최대 걸린 시간. 너무 큰 값. 1번은 그 다음 큰값.
+		UINT64 CallCNT;	//call한 횟수.
 	};
 	struct ProfileThread
 	{
@@ -31,6 +31,7 @@ private:
 	};
 	ProfileThread Thread[ThreadMax];
 
+//	Profile profile_Array[Max];
 	LARGE_INTEGER SecondFrequency;
 	double NanoSecond;
 
@@ -58,8 +59,6 @@ public:
 		QueryPerformanceFrequency (&SecondFrequency);
 		NanoSecond = (double) SecondFrequency.QuadPart / 1000000000;
 		setlocale (LC_ALL, "");
-
-		_CStartTime = GetTickCount64 ();
 	}
 	~ProfileStructher (void)
 	{
@@ -69,29 +68,25 @@ public:
 	bool End_Profile (WCHAR *name, __int64 EndTime);	//없거나 시작되지 않은 프로파일 일경우 false 리턴.
 	void Print_Profile (void);		//저장된 프로파일들을 파일로 출력함.
 	void ClearProfile (void);		//모든 프로파일을 초기화 시켜버린다.
-
-
-
-
-	INT64 _CStartTime;
 };
 
 void Profile_Begin (WCHAR *name);
 void Profile_End (WCHAR *name);
 void PROFILE_KeyProc (void);
-
+void PROFILE_Print (void);
 
 //선언부
-//#define PROFILE_CHECK
+#define PROFILE_CHECK
 
 #ifdef PROFILE_CHECK
 #define PROFILE_BEGIN(X)	Profile_Begin(X)
 #define PROFILE_END(X)		Profile_End(X)
-#define PROFILE_KEYPROC()		PROFILE_KeyProc()
-
+#define PROFILE_KEYPROC		PROFILE_KeyProc()
+#define PROFILE_PRINT		PROFILE_Print()
 #else
 #define PROFILE_BEGIN(X)
 #define PROFILE_END(X)
-#define PROFILE_KEYPROC()
+#define PROFILE_KEYPROC
+#define PROFILE_PRINT	
 
 #endif
