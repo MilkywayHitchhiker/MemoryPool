@@ -104,6 +104,10 @@ int main()
 		}
 		if ( EndFlag )
 		{
+			if ( Cnt == 4 )
+			{
+				PROFILE_PRINT;
+			}
 			break;
 		}
 	}
