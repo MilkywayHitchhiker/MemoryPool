@@ -4,6 +4,7 @@
 #include "stdafx.h"
 #include "lib\Library.h"
 #include"MemoryPool.h"
+#include"LockFreeStack.h"
 
 #define defData 0x0000000055555555
 #define defCnt 0
@@ -21,29 +22,36 @@ struct st_TEST_DATA
 
 unsigned int __stdcall MemoryPoolThread (void *pParam);
 unsigned int __stdcall SpeedTestThread (void *pParam);
-
+unsigned int __stdcall LF_StackTestThread (void *pParam);
 
 #define dfTHREAD_ALLOC 10000
 #define dfTHREAD_MAX 10
-#define dfTESTLOOP_MAX 10000
+#define dfTESTLOOP_MAX 1000
 
 
 CMemoryPool<st_TEST_DATA> *g_Mempool;
 CMemoryPool_LF<st_TEST_DATA> *g_Mempool_LF;
+CStack_LF<st_TEST_DATA *> *g_LF_Stack;
 
 
 LONG64 LF_MemPool_Th_TPS = 0;
 LONG64 Speed_Th_TPS = 0;
-
+bool TESTEnd;
 
 
 void MemoryPoolTESTMain (void);
+void LF_Stack_TESTMain (void);
 bool SpeedtestMain (void);
-
 int main()
 {
+	
 	g_Mempool = new CMemoryPool<st_TEST_DATA> (0);
 	g_Mempool_LF = new CMemoryPool_LF<st_TEST_DATA> (0);
+	g_LF_Stack = new CStack_LF<st_TEST_DATA *> ();
+
+	LOG_DIRECTORY (L"LOG");
+	LOG_LEVEL (LOG_DEBUG,false);
+	LOG_LOG (L"main", LOG_SYSTEM, L"Start");
 
 	HANDLE hThread[dfTHREAD_MAX];
 	DWORD dwThreadID;
@@ -54,7 +62,7 @@ int main()
 	{
 		wprintf (L"\n락프리 테스트 모듈 \n");
 		wprintf (L"1.LF_MemPool \n");
-		wprintf (L"2. \n");
+		wprintf (L"2.LF_Stack \n");
 		wprintf (L"3. \n");
 		wprintf (L"4. MemPool SpeedTest\n");
 		wscanf_s (L"%d",&Cnt);
@@ -70,6 +78,12 @@ int main()
 			break;
 
 		case 2:
+			for ( int iCnt = 0; iCnt < dfTHREAD_MAX; iCnt++ )
+			{
+				hThread[iCnt] = ( HANDLE )_beginthreadex (NULL, 0, LF_StackTestThread, ( LPVOID )0, 0, ( unsigned int * )&dwThreadID);
+			}
+
+			break;
 			continue;
 		case 3:
 			continue;
@@ -79,6 +93,7 @@ int main()
 			{
 				hThread[iCnt] = ( HANDLE )_beginthreadex (NULL, 0, SpeedTestThread, ( LPVOID )0, 0, ( unsigned int * )&dwThreadID);
 			}
+			TESTEnd = false;
 			break;
 
 		default:
@@ -98,16 +113,18 @@ int main()
 		case 1:
 			MemoryPoolTESTMain ();
 			break;
+		case 2:
+			LF_Stack_TESTMain ();
+			break;
 		case 4:
 			EndFlag = SpeedtestMain ();
 			break;
 		}
-		if ( EndFlag )
+		if ( Cnt == 4 && EndFlag )
 		{
-			if ( Cnt == 4 )
-			{
-				PROFILE_PRINT;
-			}
+
+			PROFILE_PRINT;
+
 			break;
 		}
 	}
@@ -126,10 +143,19 @@ void MemoryPoolTESTMain (void)
 	LF_MemPool_Th_TPS = 0;
 }
 
+void LF_Stack_TESTMain (void)
+{
+	wprintf (L"\n");
+	wprintf (L"LF_Stack Full Size = %lld\n", g_LF_Stack->GetFullNode ());
+	wprintf (L"LF_Stack Use Size = %lld\n", g_LF_Stack->GetUseSize ());
+	wprintf (L"Test Thread TPS = %lld\n", Speed_Th_TPS);
+	wprintf (L"\n");
+	Speed_Th_TPS = 0;
+}
 
 bool SpeedtestMain (void)
 {
-	if ( Speed_Th_TPS == 0 )
+	if ( TESTEnd )
 	{
 		return true;
 	}
@@ -139,6 +165,7 @@ bool SpeedtestMain (void)
 	Speed_Th_TPS = 0;
 	return false;
 }
+
 
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -243,7 +270,7 @@ unsigned int __stdcall MemoryPoolThread (void *pParam)
 				CCrashDump::Crash ();
 			}
 		}
-
+		Sleep (2);
 
 		InterlockedIncrement64 (( volatile LONG64 * )&LF_MemPool_Th_TPS);
 
@@ -303,7 +330,6 @@ unsigned int __stdcall SpeedTestThread (void *pParam)
 			free (pDataArray[iCnt]);
 			PROFILE_END (L"malloc_Free");
 		}
-
 		//================================================================
 		//new
 		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
@@ -363,10 +389,159 @@ unsigned int __stdcall SpeedTestThread (void *pParam)
 			g_Mempool_LF->Free (pDataArray[iCnt]);
 			PROFILE_END (L"MemPoolLF_Free");
 		}
+		InterlockedIncrement64 (( volatile LONG64 * )&Speed_Th_TPS);
+		Sleep (2);
+	}
 
+	TESTEnd = true;
+
+	return 0;
+}
+
+
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//LF_Stack 속도 테스트용 스레드
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+
+unsigned int __stdcall LF_StackTestThread (void *pParam)
+{
+	/*------------------------------------------------------------------*/
+	/////// 락프리 스택 테스트 //////////////////////////////////////////////
+
+	// 여러개의 스레드에서 일정수량의 PUSH 와 POP을 반복적으로 함
+	// 모든 데이터는 0x0000000055555555 으로 초기화 되어 있음.
+
+	//각 동적할당 연산자에 대한 작업.
+	// 0. Alloc (스레드당 10000 개 x 10 개 단일 스레드 총 10만개)
+	// 1. 약간대기
+	// 2. Free
+	// LoopMax만큼 반복함.
+
+	// 테스트 목적
+	//
+	// - 작성된 메모리풀과의 속도 테스트.
+	/*------------------------------------------------------------------*/
+
+	int iCnt;
+
+	st_TEST_DATA *pDataArray[dfTHREAD_ALLOC];
+
+
+	for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
+	{
+		pDataArray[iCnt] = new st_TEST_DATA ();
+		if ( pDataArray[iCnt] == NULL )
+		{
+			CCrashDump::Crash ();
+		}
+	}
+
+	//================================================================
+	//초기화
+
+	for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
+	{
+		pDataArray[iCnt]->Cnt = 1;
+		pDataArray[iCnt]->Data = 0x0000000055555555;
+	}
+
+	while(1)
+	{
+		//================================================================
+		//PUSH
+		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
+		{
+			g_LF_Stack->Push (pDataArray[iCnt]);
+
+		}
+
+		Sleep (10);
+
+
+		//================================================================
+		//POP
+		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
+		{
+			if ( g_LF_Stack->Pop (&pDataArray[iCnt]) ==false)
+			{
+				CCrashDump::Crash ();
+			}
+		}
+
+		//================================================================
+		//초기값 맞는지 체크.
+		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
+		{
+			if ( pDataArray[iCnt]->Data != 0x0000000055555555 )
+			{
+				CCrashDump::Crash ();
+			}
+			if ( pDataArray[iCnt]->Cnt != 1 )
+			{
+				CCrashDump::Crash ();
+			}
+		}
+
+
+		//================================================================
+		//interlocked로 증가.
+		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
+		{
+			InterlockedIncrement64 (( volatile LONG64 * )&pDataArray[iCnt]->Data);
+			InterlockedIncrement64 (( volatile LONG64 * )&pDataArray[iCnt]->Cnt);
+		}
+
+		Sleep (10);
+
+		//================================================================
+		//interlocked로 증가된값이 맞는지 체크.
+		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
+		{
+			if ( pDataArray[iCnt]->Data != 0x0000000055555556 )
+			{
+				CCrashDump::Crash ();
+			}
+			if ( pDataArray[iCnt]->Cnt != 2 )
+			{
+				CCrashDump::Crash ();
+			}
+		}
+
+		//================================================================
+		//interlocked로 초기값으로 감소
+		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
+		{
+			InterlockedDecrement64 (( volatile LONG64 * )&pDataArray[iCnt]->Data);
+			InterlockedDecrement64 (( volatile LONG64 * )&pDataArray[iCnt]->Cnt);
+		}
+
+	//	Sleep (10);
+
+		//================================================================
+		//interlocked로 감소된 값이 맞는지 체크.
+		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
+		{
+			if ( pDataArray[iCnt]->Data != 0x0000000055555555 )
+			{
+				CCrashDump::Crash ();
+			}
+			if ( pDataArray[iCnt]->Cnt != 1 )
+			{
+				CCrashDump::Crash ();
+			}
+		}
 
 		InterlockedIncrement64 (( volatile LONG64 * )&Speed_Th_TPS);
 	}
+
+	for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
+	{
+	 delete pDataArray[iCnt];
+	}
+
+	TESTEnd = true;
 
 	return 0;
 }

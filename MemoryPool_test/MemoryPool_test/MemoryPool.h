@@ -196,9 +196,9 @@ public:
 		_pTop = stpBlock;
 
 		Release ();
-		
+
 		InterlockedDecrement64 (( LONG64 * )&m_iAllocCount);
-		
+
 		return true;
 	}
 
@@ -394,7 +394,7 @@ public:
 
 		if ( bPlacementNew )
 		{
-			new (&stpBlock->data) DATA;
+			new ((DATA *)&stpBlock->data) DATA;
 		}
 
 

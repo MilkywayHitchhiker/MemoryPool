@@ -157,7 +157,7 @@ void ProfileStructher::Print_Profile (void)
 
 	_wfopen_s (&fp,L"Profile.txt",L"w+t,ccs=UNICODE");
 
-	fwprintf_s (fp, L"%-13s l %-17s l %-20s   l %-20s   l %-20s   l %-8s l\n", L"ThreadID", L"Name", L"Average", L"MinTime", L"MaxTime", L"TotalCaLL");
+	fwprintf_s (fp, L"%-13s l %-17s l %-20s   l %-20s   l %-20s   l %-9s l\n", L"ThreadID", L"Name", L"Average", L"MinTime", L"MaxTime", L"TotalCaLL");
 	fwprintf_s (fp, L"ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ\n");
 
 	for ( int TCnt = 0; TCnt < ThreadMax; TCnt++ )
@@ -219,7 +219,7 @@ void Profile_Begin (WCHAR *name)
 	QueryPerformanceCounter (&StartTime);
 	if ( false == Profile.Set_Profile (name, StartTime.QuadPart) )
 	{
-		//throw false;
+		throw false;
 	}
 	return;
 }
@@ -230,7 +230,7 @@ void Profile_End (WCHAR *name)
 	QueryPerformanceCounter (&EndTime);
 	if ( false == Profile.End_Profile (name, EndTime.QuadPart) )
 	{
-	//	throw false;
+		throw false;
 	}
 	return;
 }
