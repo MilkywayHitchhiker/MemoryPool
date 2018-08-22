@@ -364,9 +364,9 @@ public:
 		st_BLOCK_NODE *stpBlock;
 		st_TOP_NODE pPreTopNode;
 		INT64 iBlockCount = m_iBlockCount;
-		INT64 iAllocCount =  InterlockedIncrement64 ((volatile LONG64 *)&m_iAllocCount);
+		INT64 iAllocCount = InterlockedIncrement64 (( volatile LONG64 * )&m_iAllocCount);
 
-		if ( iBlockCount < iAllocCount )
+		if ( iBlockCount <= iAllocCount )
 		{
 			if ( m_bStoreFlag )
 			{
@@ -386,6 +386,11 @@ public:
 			{
 				pPreTopNode.iUniqueNum = _pTop->iUniqueNum;
 				pPreTopNode.pTopNode = _pTop->pTopNode;
+
+				if ( pPreTopNode.pTopNode != NULL )
+				{
+					continue;
+				}
 
 			} while ( !InterlockedCompareExchange128 (( volatile LONG64 * )_pTop, iUniqueNum, ( LONG64 )pPreTopNode.pTopNode->stpNextBlock, ( LONG64 * )&pPreTopNode) );
 
@@ -414,6 +419,8 @@ public:
 
 		stpBlock = (( st_BLOCK_NODE * )pData);
 
+		InterlockedDecrement64 (( volatile LONG64 * )&m_iAllocCount);
+
 		INT64 iUniqueNum = InterlockedIncrement64 (( volatile LONG64 * )&_iUniqueNum);
 
 		do
@@ -424,7 +431,7 @@ public:
 			stpBlock->stpNextBlock = pPreTopNode.pTopNode;
 		} while ( !InterlockedCompareExchange128 (( volatile LONG64 * )_pTop, iUniqueNum, ( LONG64 )stpBlock, ( LONG64 * )&pPreTopNode) );
 
-		InterlockedDecrement64 (( volatile LONG64 * )&m_iAllocCount);
+
 		return true;
 	}
 

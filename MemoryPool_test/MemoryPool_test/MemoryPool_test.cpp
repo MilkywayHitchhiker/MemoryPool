@@ -3,8 +3,10 @@
 
 #include "stdafx.h"
 #include "lib\Library.h"
-#include"MemoryPool.h"
-#include"LockFreeStack.h"
+#include "MemoryPool.h"
+#include "LockFreeStack.h"
+#include "LockFreeQueue.h"
+CCrashDump Dump;
 
 #define defData 0x0000000055555555
 #define defCnt 0
@@ -23,24 +25,32 @@ struct st_TEST_DATA
 unsigned int __stdcall MemoryPoolThread (void *pParam);
 unsigned int __stdcall SpeedTestThread (void *pParam);
 unsigned int __stdcall LF_StackTestThread (void *pParam);
+unsigned int __stdcall LF_Queue_InQueue_Thread (void *pParam);
+unsigned int __stdcall LF_Queue_DeQueue_Thread (void *pParam);
 
 #define dfTHREAD_ALLOC 10000
 #define dfTHREAD_MAX 10
 #define dfTESTLOOP_MAX 1000
-
+#define InQueueSleep 0
+#define DeQueueSleep 0
 
 CMemoryPool<st_TEST_DATA> *g_Mempool;
 CMemoryPool_LF<st_TEST_DATA> *g_Mempool_LF;
 CStack_LF<st_TEST_DATA *> *g_LF_Stack;
+CQueue_LF<st_TEST_DATA *> *g_LF_Queue;
 
 
 LONG64 LF_MemPool_Th_TPS = 0;
 LONG64 Speed_Th_TPS = 0;
+LONG64 InQueue_Th_TPS = 0;
+LONG64 DeQueue_Th_TPS = 0;
+
 bool TESTEnd;
 
 
 void MemoryPoolTESTMain (void);
 void LF_Stack_TESTMain (void);
+void LF_Queue_TESTMain (void);
 bool SpeedtestMain (void);
 int main()
 {
@@ -48,6 +58,7 @@ int main()
 	g_Mempool = new CMemoryPool<st_TEST_DATA> (0);
 	g_Mempool_LF = new CMemoryPool_LF<st_TEST_DATA> (0);
 	g_LF_Stack = new CStack_LF<st_TEST_DATA *> ();
+	g_LF_Queue = new CQueue_LF<st_TEST_DATA *> ();
 
 	LOG_DIRECTORY (L"LOG");
 	LOG_LEVEL (LOG_DEBUG,false);
@@ -63,7 +74,7 @@ int main()
 		wprintf (L"\n락프리 테스트 모듈 \n");
 		wprintf (L"1.LF_MemPool \n");
 		wprintf (L"2.LF_Stack \n");
-		wprintf (L"3. \n");
+		wprintf (L"3.LF_Queue // 제작중 \n");
 		wprintf (L"4. MemPool SpeedTest\n");
 		wscanf_s (L"%d",&Cnt);
 
@@ -84,9 +95,18 @@ int main()
 			}
 
 			break;
-			continue;
+
 		case 3:
-			continue;
+			for ( int iCnt = 0; iCnt < 3; iCnt++ )
+			{
+				hThread[iCnt] = ( HANDLE )_beginthreadex (NULL, 0, LF_Queue_InQueue_Thread, ( LPVOID )0, 0, ( unsigned int * )&dwThreadID);
+			}
+
+			for ( int iCnt = 3; iCnt < dfTHREAD_MAX ; iCnt++ )
+			{
+				hThread[iCnt] = ( HANDLE )_beginthreadex (NULL, 0, LF_Queue_DeQueue_Thread, ( LPVOID )0, 0, ( unsigned int * )&dwThreadID);
+			}
+			break;
 		case 4:
 
 			for ( int iCnt = 0; iCnt < 1; iCnt++ )
@@ -115,6 +135,9 @@ int main()
 			break;
 		case 2:
 			LF_Stack_TESTMain ();
+			break;
+		case 3:
+			LF_Queue_TESTMain ();
 			break;
 		case 4:
 			EndFlag = SpeedtestMain ();
@@ -151,6 +174,16 @@ void LF_Stack_TESTMain (void)
 	wprintf (L"Test Thread TPS = %lld\n", Speed_Th_TPS);
 	wprintf (L"\n");
 	Speed_Th_TPS = 0;
+}
+void LF_Queue_TESTMain (void)
+{
+	wprintf (L"\n");
+	wprintf (L"LF_Queue Use Size = %lld\n", g_LF_Queue->GetUseSize());
+	wprintf (L"Test InQueueThread TPS = %lld\n", InQueue_Th_TPS);
+	wprintf (L"Test DeQueueThread TPS = %lld\n", DeQueue_Th_TPS);
+	wprintf (L"\n");
+	InQueue_Th_TPS = 0;
+	DeQueue_Th_TPS = 0;
 }
 
 bool SpeedtestMain (void)
@@ -308,7 +341,7 @@ unsigned int __stdcall SpeedTestThread (void *pParam)
 
 	st_TEST_DATA *pDataArray[dfTHREAD_ALLOC];
 
-	for ( int MaxCnt = 0; MaxCnt < dfTESTLOOP_MAX * 10; MaxCnt++ )
+	for ( int Cnt = 0; Cnt < dfTESTLOOP_MAX * 10; Cnt++ )
 	{
 
 		//================================================================
@@ -402,7 +435,7 @@ unsigned int __stdcall SpeedTestThread (void *pParam)
 
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
-//LF_Stack 속도 테스트용 스레드
+//LF_Stack 테스트용 스레드
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 
 unsigned int __stdcall LF_StackTestThread (void *pParam)
@@ -540,6 +573,144 @@ unsigned int __stdcall LF_StackTestThread (void *pParam)
 	{
 	 delete pDataArray[iCnt];
 	}
+
+	TESTEnd = true;
+
+	return 0;
+}
+
+
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//LF_Queue 테스트용 InQueue스레드
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//제작중
+unsigned int __stdcall LF_Queue_InQueue_Thread (void *pParam)
+{
+	/*------------------------------------------------------------------*/
+	/////// 락프리 큐 인큐 테스트 //////////////////////////////////////////////
+
+	// 여러개의 스레드에서 무한반복 PUSH를 반복적으로 함
+	// 모든 데이터는 0x0000000055555555 으로 초기화 되어 있음.
+
+	//각 동적할당 연산자에 대한 작업.
+	// 0. Alloc (스레드당 10000 개 x 10 개 단일 스레드 총 10만개)
+	// 1. 약간대기
+	//무한반복
+
+	// 테스트 목적
+	//
+	// -	제대로 InQueue가 되는지 확인.
+	/*------------------------------------------------------------------*/
+
+	st_TEST_DATA *pDataArray;
+
+	while ( 1 )
+	{
+
+		pDataArray = new st_TEST_DATA;
+		if ( pDataArray == NULL )
+		{
+			CCrashDump::Crash ();
+		}
+
+
+
+
+		//초기화
+		pDataArray->Data = defData;
+		pDataArray->Cnt = defCnt;
+
+
+
+
+		//큐 Max치 도달.
+
+		if ( g_LF_Queue->Enqueue (pDataArray) == false )
+		{
+			CCrashDump::Crash ();
+		}
+
+		InterlockedIncrement64 (( volatile LONG64 * )&InQueue_Th_TPS);
+
+		Sleep (InQueueSleep);
+
+	}
+
+	TESTEnd = true;
+
+	return 0;
+}
+
+
+
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//LF_Queue 테스트용 DeQueue스레드
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//제작중
+unsigned int __stdcall LF_Queue_DeQueue_Thread (void *pParam)
+{
+	/*------------------------------------------------------------------*/
+	/////// 락프리 큐 디큐 테스트 //////////////////////////////////////////////
+
+	// 여러개의 스레드에서 무한반복 POP을 반복적으로 함
+	// 모든 데이터는 0x0000000055555555 으로 초기화 되어 있음.
+
+	//각 동적할당 연산자에 대한 작업.
+	// 0. Alloc (스레드당 10000 개 단일 스레드 총 10만개)
+	// 1. 약간대기
+	//무한반복
+
+	// 테스트 목적
+	//
+	// -	제대로 InQueue가 되는지 확인.
+	/*------------------------------------------------------------------*/
+
+	st_TEST_DATA *pDataArray;
+
+
+	while ( 1 )
+	{
+		if ( g_LF_Queue->Dequeue (&pDataArray) == false )
+		{
+			//뽑을 데이터 없음. sleep으로 쉬고 다시 시작.
+			Sleep (DeQueueSleep + DeQueueSleep);
+			continue;
+		}
+
+		if ( pDataArray->Data != defData )
+		{
+			CCrashDump::Crash ();
+		}
+		if ( pDataArray->Cnt != defCnt )
+		{
+			CCrashDump::Crash ();
+		}
+
+		InterlockedIncrement64 (( volatile LONG64 * )&pDataArray->Data);
+		InterlockedIncrement64 (( volatile LONG64 * )&pDataArray->Cnt);
+
+		if ( pDataArray->Data != defData+1 )
+		{
+			CCrashDump::Crash ();
+		}
+
+		if ( pDataArray->Cnt != defCnt+1 )
+		{
+			CCrashDump::Crash ();
+		}
+
+		delete pDataArray;
+
+		InterlockedIncrement64 (( volatile LONG64 * )&DeQueue_Th_TPS);
+
+	//	Sleep (DeQueueSleep);
+
+	}
+
 
 	TESTEnd = true;
 
