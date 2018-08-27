@@ -28,7 +28,7 @@ private :
 	volatile __int64 _NodeCnt;
 	volatile __int64 _MaxCnt;
 public :
-	CMemoryPool_TLS<NODE> *_pMemPool;
+	CMemoryPool_LF<NODE> *_pMemPool;
 	/*//////////////////////////////////////////////////////////////////////
 	//생성자.파괴자.
 	//////////////////////////////////////////////////////////////////////*/
@@ -36,7 +36,7 @@ public :
 	{
 		_TOP_NODE *HNode = ( _TOP_NODE * )_aligned_malloc (sizeof (_TOP_NODE), 16);
 		_TOP_NODE *TNode = ( _TOP_NODE * )_aligned_malloc (sizeof (_TOP_NODE), 16);
-		_pMemPool = new CMemoryPool_TLS<NODE> (0);
+		_pMemPool = new CMemoryPool_LF<NODE> (0);
 
 		HNode->pNode = _pMemPool->Alloc ();
 		HNode->pNode->pNext = NULL;

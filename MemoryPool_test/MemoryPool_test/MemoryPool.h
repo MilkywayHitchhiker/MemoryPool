@@ -396,7 +396,7 @@ public:
 				pPreTopNode.iUniqueNum = _pTop->iUniqueNum;
 				pPreTopNode.pTopNode = _pTop->pTopNode;
 
-				if ( pPreTopNode.pTopNode != NULL )
+				if ( pPreTopNode.pTopNode == NULL )
 				{
 					continue;
 				}
