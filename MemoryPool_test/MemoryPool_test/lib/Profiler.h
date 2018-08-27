@@ -7,7 +7,7 @@ __declspec (thread) static void *pThread = NULL;
 class ProfileStructher
 {
 #define Max 50		//여기에서만 쓸 용도 이므로 class내부에서 정의해 준다.
-#define ThreadMax 5
+#define ThreadMax 20
 
 private:
 	struct Profile
@@ -33,7 +33,7 @@ private:
 
 //	Profile profile_Array[Max];
 	LARGE_INTEGER SecondFrequency;
-	double NanoSecond;
+	double microSecond;
 
 public:
 	ProfileStructher(void)
@@ -57,7 +57,7 @@ public:
 		}
 
 		QueryPerformanceFrequency (&SecondFrequency);
-		NanoSecond = (double) SecondFrequency.QuadPart / 1000000000;
+		microSecond = (double) SecondFrequency.QuadPart / 100000;
 		setlocale (LC_ALL, "");
 	}
 	~ProfileStructher (void)

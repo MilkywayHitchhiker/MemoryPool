@@ -175,9 +175,9 @@ void ProfileStructher::Print_Profile (void)
 				Thread[TCnt].profile_Array[cnt].TotalTime += Thread[TCnt].profile_Array[cnt].Max_Time[1];
 
 				i_Average = ( double )Thread[TCnt].profile_Array[cnt].TotalTime / Thread[TCnt].profile_Array[cnt].CallCNT;
-				Average = i_Average / NanoSecond;
-				MinTime = ( double )Thread[TCnt].profile_Array[cnt].Min_Time[1] / NanoSecond;
-				MaxTime = ( double )Thread[TCnt].profile_Array[cnt].Max_Time[1] / NanoSecond;
+				Average = i_Average / microSecond;
+				MinTime = ( double )Thread[TCnt].profile_Array[cnt].Min_Time[1] / microSecond;
+				MaxTime = ( double )Thread[TCnt].profile_Array[cnt].Max_Time[1] / microSecond;
 
 				fwprintf_s (fp, L" %-12d l %-17ls l %-20.4fµs l %-20.4fµs l %-20.4fµs l %8lld  l\n", Thread[TCnt].ThreadID,Thread[TCnt].profile_Array[cnt].Name, Average, MinTime, MaxTime, Thread[TCnt].profile_Array[cnt].CallCNT);
 			}
