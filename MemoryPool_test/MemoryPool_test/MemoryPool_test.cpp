@@ -35,7 +35,7 @@ unsigned int __stdcall LF_Queue_DeQueue_Thread (void *pParam);
 #define DeQueueSleep 0
 
 CMemoryPool<st_TEST_DATA> *g_Mempool;
-CMemoryPool_TLS<st_TEST_DATA> *g_Mempool_LF;
+CMemoryPool_LF<st_TEST_DATA> *g_Mempool_LF;
 CStack_LF<st_TEST_DATA *> *g_LF_Stack;
 CQueue_LF<st_TEST_DATA *> *g_LF_Queue;
 
@@ -56,7 +56,7 @@ int main()
 {
 	
 	g_Mempool = new CMemoryPool<st_TEST_DATA> (0);
-	g_Mempool_LF = new CMemoryPool_TLS<st_TEST_DATA> (0);
+	g_Mempool_LF = new CMemoryPool_LF<st_TEST_DATA> (0);
 	g_LF_Stack = new CStack_LF<st_TEST_DATA *> ();
 	g_LF_Queue = new CQueue_LF<st_TEST_DATA *> ();
 
