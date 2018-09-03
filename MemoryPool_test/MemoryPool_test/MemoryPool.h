@@ -371,15 +371,16 @@ public:
 	DATA	*Alloc (bool bPlacementNew = true)
 	{
 		st_BLOCK_NODE *stpBlock;
-		st_TOP_NODE pPreTopNode;
+
 		INT64 iBlockCount = m_iBlockCount;
 		INT64 iAllocCount = InterlockedIncrement64 (( volatile LONG64 * )&m_iAllocCount);
 
-		if ( iBlockCount <= iAllocCount )
+		if ( iAllocCount >= iBlockCount )
 		{
 			if ( m_bStoreFlag )
 			{
 				stpBlock = ( st_BLOCK_NODE * )malloc (sizeof (st_BLOCK_NODE));
+				stpBlock->stpNextBlock = NULL;
 				InterlockedIncrement64 (( volatile LONG64 * )&m_iBlockCount);
 			}
 
@@ -389,6 +390,7 @@ public:
 
 		else
 		{
+			st_TOP_NODE pPreTopNode;
 			INT64 iUniqueNum = InterlockedIncrement64 (( volatile LONG64 * )&_iUniqueNum);
 
 			do
@@ -396,14 +398,9 @@ public:
 				pPreTopNode.iUniqueNum = _pTop->iUniqueNum;
 				pPreTopNode.pTopNode = _pTop->pTopNode;
 
-				if ( pPreTopNode.pTopNode == NULL )
-				{
-					continue;
-				}
-
 			} while ( !InterlockedCompareExchange128 (( volatile LONG64 * )_pTop, iUniqueNum, ( LONG64 )pPreTopNode.pTopNode->stpNextBlock, ( LONG64 * )&pPreTopNode) );
-
 			stpBlock = pPreTopNode.pTopNode;
+			stpBlock->stpNextBlock = NULL;
 		}
 
 		if ( bPlacementNew )
@@ -428,7 +425,7 @@ public:
 
 		stpBlock = (( st_BLOCK_NODE * )pData);
 
-		InterlockedDecrement64 (( volatile LONG64 * )&m_iAllocCount);
+
 
 		INT64 iUniqueNum = InterlockedIncrement64 (( volatile LONG64 * )&_iUniqueNum);
 
@@ -436,10 +433,12 @@ public:
 		{
 			pPreTopNode.iUniqueNum = _pTop->iUniqueNum;
 			pPreTopNode.pTopNode = _pTop->pTopNode;
+
 	
 			stpBlock->stpNextBlock = pPreTopNode.pTopNode;
 		} while ( !InterlockedCompareExchange128 (( volatile LONG64 * )_pTop, iUniqueNum, ( LONG64 )stpBlock, ( LONG64 * )&pPreTopNode) );
 
+		InterlockedDecrement64 (( volatile LONG64 * )&m_iAllocCount);
 
 		return true;
 	}
@@ -538,7 +537,6 @@ private:
 		st_BLOCK_NODE _pArray[TLS_basicChunkSize];
 		CMemoryPool_TLS<DATA> *_pMain_Manager;
 
-		int FullCnt;
 		int _Top;
 		int FreeCnt;
 	public:
@@ -558,7 +556,7 @@ private:
 			_Top = 0;
 			FreeCnt = 0;
 
-			//			FullCnt = TLS_basicChunkSize;
+
 			_pMain_Manager = pManager;
 			Chunk<DATA> *pthis = this;
 
@@ -640,7 +638,7 @@ public:
 		m_iBlockCount = 0;
 		m_iAllocCount = 0;
 		TLSNum = TlsAlloc ();
-		if ( TLSNum == 0 )
+		if ( TLSNum == 0xFFFFFFFF )
 		{
 			CCrashDump::Crash ();
 		}

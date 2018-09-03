@@ -81,8 +81,10 @@ public:
 	/////////////////////////////////////////////////////////////////////////
 	bool			isEmpty(void)
 	{
-		if (_pTop->pTopNode == NULL)
+		if ( _pTop->pTopNode == NULL )
+		{
 			return true;
+		}
 
 		return false;
 	}
@@ -96,9 +98,10 @@ public:
 	/////////////////////////////////////////////////////////////////////////
 	bool			Push(DATA Data)
 	{
-		st_NODE *pNode = _pMemoryPool->Alloc();
 		st_TOP_NODE pPreTopNode;
+
 		__int64 iUniqueNum = InterlockedIncrement64(&_iUniqueNum);
+		st_NODE *pNode = _pMemoryPool->Alloc ();
 		pNode->Data = Data;
 
 		do {
@@ -121,6 +124,9 @@ public:
 	bool			Pop(DATA *pOutData)
 	{
 		st_TOP_NODE pPreTopNode;
+
+		InterlockedDecrement64 (( volatile LONG64 * )&_lUseSize);
+
 		__int64 iUniqueNum = InterlockedIncrement64(&_iUniqueNum);
 
 		do
@@ -135,10 +141,9 @@ public:
 			}
 
 		} while (!InterlockedCompareExchange128((volatile LONG64 *)_pTop, iUniqueNum, (LONG64)pPreTopNode.pTopNode->pNext, (LONG64 *)&pPreTopNode));
-		InterlockedDecrement64 ((volatile LONG64 * )&_lUseSize);
-
 		*pOutData = pPreTopNode.pTopNode->Data;
 		_pMemoryPool->Free(pPreTopNode.pTopNode);
+
 		return true;
 	}
 

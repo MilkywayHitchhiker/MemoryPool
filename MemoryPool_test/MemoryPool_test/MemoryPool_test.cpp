@@ -29,7 +29,7 @@ unsigned int __stdcall LF_Queue_InQueue_Thread (void *pParam);
 unsigned int __stdcall LF_Queue_DeQueue_Thread (void *pParam);
 
 #define dfTHREAD_ALLOC 10000
-#define dfTHREAD_MAX 10
+#define dfTHREAD_MAX 4
 #define dfTESTLOOP_MAX 1000
 #define InQueueSleep 0
 #define DeQueueSleep 0
@@ -58,7 +58,7 @@ int main()
 	g_Mempool = new CMemoryPool<st_TEST_DATA> (0);
 	g_Mempool_LF = new CMemoryPool_LF<st_TEST_DATA> (0);
 	g_LF_Stack = new CStack_LF<st_TEST_DATA *> ();
-	g_LF_Queue = new CQueue_LF<st_TEST_DATA *> ();
+	g_LF_Queue = new CQueue_LF<st_TEST_DATA *> (0);
 
 	LOG_DIRECTORY (L"LOG");
 	LOG_LEVEL (LOG_DEBUG,false);
@@ -97,12 +97,12 @@ int main()
 			break;
 
 		case 3:
-			for ( int iCnt = 0; iCnt < 3; iCnt++ )
+			for ( int iCnt = 0; iCnt < 2; iCnt++ )
 			{
 				hThread[iCnt] = ( HANDLE )_beginthreadex (NULL, 0, LF_Queue_InQueue_Thread, ( LPVOID )0, 0, ( unsigned int * )&dwThreadID);
 			}
 
-			for ( int iCnt = 3; iCnt < dfTHREAD_MAX ; iCnt++ )
+			for ( int iCnt = 2; iCnt < dfTHREAD_MAX ; iCnt++ )
 			{
 				hThread[iCnt] = ( HANDLE )_beginthreadex (NULL, 0, LF_Queue_DeQueue_Thread, ( LPVOID )0, 0, ( unsigned int * )&dwThreadID);
 			}
@@ -180,7 +180,10 @@ void LF_Queue_TESTMain (void)
 	wprintf (L"\n");
 	wprintf (L"LF_Queue Use Size = %lld\n", g_LF_Queue->GetUseSize());
 	wprintf (L"Test InQueueThread TPS = %lld\n", InQueue_Th_TPS);
-	wprintf (L"Test DeQueueThread TPS = %lld\n", DeQueue_Th_TPS);
+	wprintf (L"Test DeQueueThread TPS = %lld\n\n", DeQueue_Th_TPS);
+
+	wprintf (L"MemPool Alloc Cnt = %lld\n", g_Mempool_LF->GetAllocCount ());
+	wprintf (L"MemPool Full Cnt = %lld\n", g_Mempool_LF->GetFullCount ());
 	wprintf (L"\n");
 	InQueue_Th_TPS = 0;
 	DeQueue_Th_TPS = 0;
@@ -269,7 +272,7 @@ unsigned int __stdcall MemoryPoolThread (void *pParam)
 			InterlockedIncrement64 (( volatile LONG64 * )&pDataArray[iCnt]->Cnt);
 		}
 
-		Sleep (2);
+	//	Sleep (2);
 
 		for ( iCnt = 0; iCnt < dfTHREAD_ALLOC; iCnt++ )
 		{
@@ -303,7 +306,7 @@ unsigned int __stdcall MemoryPoolThread (void *pParam)
 				CCrashDump::Crash ();
 			}
 		}
-		Sleep (20);
+		Sleep (5);
 
 		InterlockedIncrement64 (( volatile LONG64 * )&LF_MemPool_Th_TPS);
 
@@ -608,8 +611,8 @@ unsigned int __stdcall LF_Queue_InQueue_Thread (void *pParam)
 
 	while ( 1 )
 	{
-
-		pDataArray = new st_TEST_DATA;
+		pDataArray = NULL;
+		pDataArray = g_Mempool_LF->Alloc();
 		if ( pDataArray == NULL )
 		{
 			CCrashDump::Crash ();
@@ -629,7 +632,9 @@ unsigned int __stdcall LF_Queue_InQueue_Thread (void *pParam)
 
 		if ( g_LF_Queue->Enqueue (pDataArray) == false )
 		{
-			CCrashDump::Crash ();
+			g_Mempool_LF->Free (pDataArray);
+			Sleep (5);
+			continue;
 		}
 
 		InterlockedIncrement64 (( volatile LONG64 * )&InQueue_Th_TPS);
@@ -703,11 +708,11 @@ unsigned int __stdcall LF_Queue_DeQueue_Thread (void *pParam)
 			CCrashDump::Crash ();
 		}
 
-		delete pDataArray;
+		g_Mempool_LF->Free (pDataArray);
 
 		InterlockedIncrement64 (( volatile LONG64 * )&DeQueue_Th_TPS);
 
-	//	Sleep (DeQueueSleep);
+		//Sleep (DeQueueSleep);
 
 	}
 
