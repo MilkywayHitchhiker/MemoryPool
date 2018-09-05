@@ -26,27 +26,18 @@ private :
 	_TOP_NODE *_pTail;
 
 	volatile __int64 _NodeCnt;
-	__int64 _MaxCnt;
 	__int64 _UniqueNUM;
 public :
 	CMemoryPool_LF<NODE> *_pMemPool;
 	/*//////////////////////////////////////////////////////////////////////
 	//»ý¼ºÀÚ.ÆÄ±«ÀÚ.
 	//////////////////////////////////////////////////////////////////////*/
-	CQueue_LF (INT64 MaxNode)
+	CQueue_LF ()
 	{
 		_TOP_NODE *HNode = ( _TOP_NODE * )_aligned_malloc (sizeof (_TOP_NODE), 16);
 		_TOP_NODE *TNode = ( _TOP_NODE * )_aligned_malloc (sizeof (_TOP_NODE), 16);
 		_pMemPool = new CMemoryPool_LF<NODE> (0);
-		if ( MaxNode < 0 )
-		{
-			CCrashDump::Crash ();
-			return;//DUMP
-		}
-		if ( MaxNode == 0 )
-		{
-			MaxNode = MaxCnt;
-		}
+	
 
 		HNode->pNode = _pMemPool->Alloc ();
 		HNode->pNode->pNext = NULL;
@@ -54,7 +45,6 @@ public :
 		
 		TNode->pNode = HNode->pNode;
 		TNode->UNIQUEUE = 0;
-		_MaxCnt = MaxNode;
 		_NodeCnt = 0;
 		
 		_pHead = HNode;
@@ -87,7 +77,7 @@ public :
 	{
 		INT64 NodeCnt = InterlockedIncrement64 (&_NodeCnt);
 		//Queue°¡ ²ËÃ¡À¸¹Ç·Î return false.
-		if ( NodeCnt >= _MaxCnt )
+		if ( NodeCnt >= MaxCnt )
 		{
 			return false;
 		}

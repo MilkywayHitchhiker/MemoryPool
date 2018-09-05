@@ -58,7 +58,7 @@ int main()
 	g_Mempool = new CMemoryPool<st_TEST_DATA> (0);
 	g_Mempool_LF = new CMemoryPool_LF<st_TEST_DATA> (0);
 	g_LF_Stack = new CStack_LF<st_TEST_DATA *> ();
-	g_LF_Queue = new CQueue_LF<st_TEST_DATA *> (0);
+	g_LF_Queue = new CQueue_LF<st_TEST_DATA *> ();
 
 	LOG_DIRECTORY (L"LOG");
 	LOG_LEVEL (LOG_DEBUG,false);
