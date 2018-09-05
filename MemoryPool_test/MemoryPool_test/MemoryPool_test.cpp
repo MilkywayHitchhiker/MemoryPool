@@ -29,7 +29,7 @@ unsigned int __stdcall LF_Queue_InQueue_Thread (void *pParam);
 unsigned int __stdcall LF_Queue_DeQueue_Thread (void *pParam);
 
 #define dfTHREAD_ALLOC 10000
-#define dfTHREAD_MAX 4
+#define dfTHREAD_MAX 6
 #define dfTESTLOOP_MAX 1000
 #define InQueueSleep 0
 #define DeQueueSleep 0
@@ -102,10 +102,12 @@ int main()
 				hThread[iCnt] = ( HANDLE )_beginthreadex (NULL, 0, LF_Queue_InQueue_Thread, ( LPVOID )0, 0, ( unsigned int * )&dwThreadID);
 			}
 
+			
 			for ( int iCnt = 2; iCnt < dfTHREAD_MAX ; iCnt++ )
 			{
 				hThread[iCnt] = ( HANDLE )_beginthreadex (NULL, 0, LF_Queue_DeQueue_Thread, ( LPVOID )0, 0, ( unsigned int * )&dwThreadID);
 			}
+			
 			break;
 		case 4:
 
