@@ -124,8 +124,7 @@ public :
 		_TOP_NODE TailNode;
 
 		NODE *pNext;
-
-
+		
 		INT64 Unique = InterlockedIncrement64 (( volatile LONG64 * )&_UniqueNUM);
 
 		while ( 1 )
@@ -138,7 +137,6 @@ public :
 			if ( TailNode.pNode->pNext != NULL )
 			{
 				InterlockedCompareExchange128 (( volatile LONG64 * )_pTail, ( LONG64 )TailNode.UNIQUEUE + 1, ( LONG64 )TailNode.pNode->pNext, ( LONG64 * )&TailNode);
-				continue;
 			}
 			
 
